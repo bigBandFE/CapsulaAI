@@ -106,4 +106,17 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// Get Capsule Feedback (Phase 2.7)
+router.get('/:id/feedback', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { FeedbackService } = await import('../services/feedback');
+    const feedback = await FeedbackService.getCapsuleFeedback(id);
+    res.json(feedback);
+  } catch (error) {
+    console.error('Error getting capsule feedback:', error);
+    res.status(500).json({ error: 'Failed to get feedback' });
+  }
+});
+
 export default router;

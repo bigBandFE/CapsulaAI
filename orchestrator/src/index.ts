@@ -9,6 +9,7 @@ import ingestRoutes from './routes/ingest';
 import timelineRoutes from './routes/timeline';
 import entitiesRoutes from './routes/entities';
 import researchRoutes from './routes/research';
+import feedbackRoutes from './routes/feedback';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ app.use('/api/ingest', ingestRoutes);
 app.use('/api/timeline', timelineRoutes);
 app.use('/api/entities', entitiesRoutes);
 app.use('/api/research', researchRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check
 app.get('/health', async (req, res) => {

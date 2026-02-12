@@ -33,6 +33,11 @@ model Capsule {
   similarTo       String?     // Reference to similar Capsule ID
   similarityScore Float?      // 0.0 - 1.0
   
+  // Quality metrics (Phase 2.7)
+  qualityScore    Float?      @default(0)
+  feedbackCount   Int         @default(0)
+  feedback        Feedback[]
+  
   @@index([contentHash])
 }
 
@@ -115,4 +120,38 @@ model Message {
   sources        Json?
   
   @@index([conversationId])
+}
+
+// Phase 2.7: Feedback System for Self-Improving Memory
+model Feedback {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  
+  capsuleId String
+  capsule   Capsule  @relation(fields: [capsuleId], references: [id], onDelete: Cascade)
+  
+  // Feedback type
+  type      FeedbackType
+  
+  // Rating (1-5 stars)
+  rating    Int?
+  
+  // User corrections (JSONB: { field, oldValue, newValue, reason })
+  correction Json?
+  
+  // Flags
+  flagReason String?  // "incorrect", "incomplete", "irrelevant", "duplicate"
+  
+  // Optional comment
+  comment   String?  @db.Text
+  
+  @@index([capsuleId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum FeedbackType {
+  RATING
+  CORRECTION
+  FLAG
 }
