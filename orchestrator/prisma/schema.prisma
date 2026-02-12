@@ -27,6 +27,13 @@ model Capsule {
   
   // Privacy
   isSanitized     Boolean     @default(false)
+  
+  // Deduplication (Phase 2.5)
+  contentHash     String?     @unique
+  similarTo       String?     // Reference to similar Capsule ID
+  similarityScore Float?      // 0.0 - 1.0
+  
+  @@index([contentHash])
 }
 
 model Asset {

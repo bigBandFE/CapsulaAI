@@ -1,0 +1,63 @@
+feat: Phase 2.5 - Memory Evolution (Deduplication + Timeline API)
+
+## Core Features
+
+### Deduplication System
+- Add contentHash, similarTo, similarityScore fields to Capsule schema
+- Implement SHA-256 content hash generation for exact duplicate detection
+- Add vector similarity detection using pgvector (threshold: 0.95)
+- Integrate duplicate check into Capsule creation API
+- Worker automatically detects similar capsules after embedding generation
+
+### Timeline API
+- Implement range query endpoint (GET /api/timeline?start=X&end=Y)
+- Add daily timeline endpoint (GET /api/timeline/daily?date=X)
+- Add activity heatmap endpoint (GET /api/timeline/heatmap?year=X)
+- Include statistics: total capsules, by source type, top entities
+
+### Entity Timeline API
+- Implement entity timeline endpoint (GET /api/entities/:name/timeline?type=X)
+- Track first/last mention dates for entities
+- Group capsules by date with context extraction
+- Add entity details endpoint (GET /api/entities/:name?type=X)
+
+## Implementation Details
+
+### Database Changes
+- Add Capsule.contentHash (TEXT, UNIQUE)
+- Add Capsule.similarTo (TEXT, references Capsule.id)
+- Add Capsule.similarityScore (DOUBLE PRECISION)
+- Create indexes for performance
+
+### New Services
+- DeduplicationService: hash generation, duplicate detection, similarity search
+- Timeline routes: temporal queries with statistics
+- Entities routes: entity-centric timeline views
+
+### API Enhancements
+- Capsule creation now returns isDuplicate flag if content exists
+- Timeline queries support date ranges and aggregations
+- Entity timeline shows chronological mention history
+
+## Testing
+- Add verify_phase2.5.sh comprehensive test suite
+- Test coverage: deduplication, timeline queries, entity timeline
+- All tests passing: ✅ duplicate detection, ✅ timeline API, ✅ heatmap
+
+## Files Changed
+- orchestrator/prisma/schema.prisma (add deduplication fields)
+- orchestrator/src/services/deduplication.ts (NEW)
+- orchestrator/src/routes/timeline.ts (NEW)
+- orchestrator/src/routes/entities.ts (NEW)
+- orchestrator/src/routes/capsule.ts (integrate duplicate check)
+- orchestrator/src/worker/index.ts (add similarity detection)
+- orchestrator/src/index.ts (register new routes)
+- scripts/verify_phase2.5.sh (NEW)
+
+## Migration
+- orchestrator/prisma/migrations/20260212_add_deduplication.sql
+
+---
+
+**Phase 2.5 Status**: ✅ Complete
+**Next**: Phase 2.6 - Private Research Agent

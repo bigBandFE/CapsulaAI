@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient, CapsuleStatus, SourceType } from '@prisma/client';
+import { DeduplicationService } from '../services/deduplication';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -9,11 +10,30 @@ router.post('/', async (req: Request, res: Response) => {
   const { originalContent, sourceType, assets } = req.body; // assets: [{ storagePath, mimeType, size, fileName }]
 
   try {
+    // Check for exact duplicate (Phase 2.5)
+    if (originalContent) {
+      const duplicate = await DeduplicationService.findExactDuplicate(originalContent);
+      if (duplicate) {
+        console.log(`[API] Duplicate content detected. Returning existing Capsule: ${duplicate.id}`);
+        return res.json({
+          isDuplicate: true,
+          capsule: duplicate,
+          message: 'This content already exists'
+        });
+      }
+    }
+
+    // Generate content hash
+    const contentHash = originalContent
+      ? DeduplicationService.generateContentHash(originalContent)
+      : null;
+
     const capsule = await prisma.capsule.create({
       data: {
         originalContent,
         sourceType: sourceType as SourceType || SourceType.NOTE,
         status: CapsuleStatus.PENDING,
+        contentHash,
         assets: {
           create: assets || []
         }

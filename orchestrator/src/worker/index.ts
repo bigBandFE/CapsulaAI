@@ -4,6 +4,7 @@ import { ModelAdapter, LLMConfig, CapabilityTester, ModelCapability, PromptEngin
 import { generateEmbedding } from '../services/embedding';
 import { Sanitizer } from '../services/sanitizer';
 import { VisionService } from '../services/vision';
+import { DeduplicationService } from '../services/deduplication';
 
 const prisma = new PrismaClient();
 
@@ -333,6 +334,18 @@ const processCapsule = async (capsuleId: string) => {
         }
       }
       console.log(`[Worker] Entity linking complete.`);
+    }
+
+    // 9. Similarity Detection (Phase 2.5)
+    try {
+      const similarCapsules = await DeduplicationService.findSimilarCapsules(embedding, 0.95);
+      if (similarCapsules.length > 0) {
+        const mostSimilar = similarCapsules[0];
+        console.log(`[Worker] Found similar capsule: ${mostSimilar.id} (similarity: ${mostSimilar.score.toFixed(3)})`);
+        await DeduplicationService.markAsSimilar(capsuleId, mostSimilar.id, mostSimilar.score);
+      }
+    } catch (err) {
+      console.warn(`[Worker] Similarity detection failed: ${err}`);
     }
 
   } catch (error) {
