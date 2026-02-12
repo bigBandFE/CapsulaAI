@@ -1,6 +1,6 @@
 FROM node:20-alpine
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
 WORKDIR /app
 

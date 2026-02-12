@@ -23,6 +23,7 @@ model Capsule {
   
   assets          Asset[]
   embeddings      Embedding[]
+  entities        Entity[]
   
   // Privacy
   isSanitized     Boolean     @default(false)
@@ -51,6 +52,20 @@ model Embedding {
   
   chunkIndex  Int      @default(0)
   contentChunk String? @db.Text
+}
+
+model Entity {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  type        String    // PERSON, ORG, LOCATION, event, etc.
+  
+  capsules    Capsule[] 
+
+  @@unique([name, type])
+  @@index([name])
 }
 
 enum CapsuleStatus {

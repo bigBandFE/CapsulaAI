@@ -54,7 +54,7 @@ services:
     # For development, mount the code
     volumes:
       - ./orchestrator:/app
-      - /app/node_modules
+      - /app/node_modules # Anonymous volume to prevent host override
 
 networks:
   capsula_net:
