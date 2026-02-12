@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Database: Postgres + pgvector
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: capsula_db
+    environment:
+      POSTGRES_USER: capsula
+      POSTGRES_PASSWORD: capsula_password
+      POSTGRES_DB: capsula_core
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - capsula_net
+
+  # Object Storage: MinIO
+  minio:
+    image: minio/minio
+    container_name: capsula_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: capsula
+      MINIO_ROOT_PASSWORD: capsula_password
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - capsula_net
+
+  # Main Application Logic
+  orchestrator:
+    build: ./orchestrator
+    container_name: capsula_orchestrator
+    command: npm run dev
+    environment:
+      DATABASE_URL: "postgresql://capsula:capsula_password@db:5432/capsula_core?schema=public"
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: "capsula"
+      MINIO_SECRET_KEY: "capsula_password"
+      MINIO_BUCKET: "capsules"
+    depends_on:
+      - db
+      - minio
+    ports:
+      - "3000:3000"
+    networks:
+      - capsula_net
+    # For development, mount the code
+    volumes:
+      - ./orchestrator:/app
+      - /app/node_modules
+
+networks:
+  capsula_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
