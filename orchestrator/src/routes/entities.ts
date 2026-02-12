@@ -151,4 +151,43 @@ function extractEntityContext(capsule: any, entityName: string): string {
   return context;
 }
 
+import { RelationshipService } from '../services/relationship';
+import { RelationshipType } from '@prisma/client';
+
+/**
+ * GET /api/entities/:id/relationships
+ * Get relationships for an entity
+ */
+router.get('/:id/relationships', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const type = req.query.type as RelationshipType | undefined;
+    const direction = req.query.direction as 'from' | 'to' | 'both' | undefined;
+
+    const relationships = await RelationshipService.getEntityRelationships(id, type, direction);
+    res.json(relationships);
+  } catch (error) {
+    console.error('Entity relationships error:', error);
+    res.status(500).json({ error: 'Failed to fetch entity relationships' });
+  }
+});
+
+/**
+ * GET /api/entities/:id/related
+ * Get related entities (multi-hop)
+ */
+router.get('/:id/related', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const depth = parseInt(req.query.depth as string) || 2;
+    const type = req.query.type as RelationshipType | undefined;
+
+    const entities = await RelationshipService.getRelatedEntities(id, depth, type);
+    res.json(entities);
+  } catch (error) {
+    console.error('Related entities error:', error);
+    res.status(500).json({ error: 'Failed to fetch related entities' });
+  }
+});
+
 export default router;

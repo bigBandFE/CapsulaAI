@@ -34,6 +34,21 @@ export class PromptEngine {
           "person": "optional string (for FOLLOW_UP)"
         }
       ],
+      "relationships": [
+        {
+          "from": "entity name",
+          "fromType": "PERSON | ORGANIZATION | LOCATION",
+          "to": "entity name",
+          "toType": "PERSON | ORGANIZATION | LOCATION",
+          "type": "WORKS_FOR | FOUNDED | INVESTED_IN | LOCATED_IN | ACQUIRED | PARTNERED_WITH | REPORTS_TO | OWNS | ATTENDED | MENTIONED_WITH | OTHER",
+          "confidence": "0.0-1.0",
+          "metadata": {
+            "title": "optional string (job title, role)",
+            "startDate": "optional ISO date",
+            "amount": "optional string (for investments/acquisitions)"
+          }
+        }
+      ],
       "tags": ["string array"]
     }
     `;
@@ -44,10 +59,11 @@ export class PromptEngine {
       You are an expert knowledge curator. Analyze the following text and extract structured insights.
       
       Step 1: Identify the main topic and key entities (People, Organizations, Locations, Dates, Money).
-      Step 2: Identify any actionable items (Todos, Reminders, Follow-ups).
-      Step 3: Summarize the core message in 1-2 sentences.
-      Step 4: Extract key points and suggest relevant tags.
-      Step 5: Output the result strictly in the following JSON format:
+      Step 2: Identify relationships between entities (who works for whom, who founded what, etc.).
+      Step 3: Identify any actionable items (Todos, Reminders, Follow-ups).
+      Step 4: Summarize the core message in 1-2 sentences.
+      Step 5: Extract key points and suggest relevant tags.
+      Step 6: Output the result strictly in the following JSON format:
       ${baseSchema}
 
       Entity Extraction Rules:
@@ -59,6 +75,19 @@ export class PromptEngine {
       - TODO: Extract tasks with clear deadlines or priorities.
       - REMINDER: Extract specific time-based alerts.
       - FOLLOW_UP: Extract interpersonal follow-ups.
+
+      Relationship Extraction Rules:
+      - WORKS_FOR: Person → Organization (extract job title if available)
+      - FOUNDED: Person → Organization (extract founding date if available)
+      - INVESTED_IN: Organization → Organization (extract amount and round if available)
+      - LOCATED_IN: Person/Organization → Location
+      - ACQUIRED: Organization → Organization (extract amount and date if available)
+      - PARTNERED_WITH: Organization → Organization
+      - REPORTS_TO: Person → Person
+      - OWNS: Person/Organization → Organization
+      - ATTENDED: Person → Organization (education)
+      - MENTIONED_WITH: Any → Any (co-occurrence in same context)
+      - Confidence: 1.0 for explicit statements, 0.5-0.9 for implied relationships
 
       Text to analyze:
       ${text}

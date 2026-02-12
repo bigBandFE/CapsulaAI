@@ -333,10 +333,22 @@ const processCapsule = async (capsuleId: string) => {
           console.warn(`[Worker] Failed to link entity ${safeName}: ${err}`);
         }
       }
-      console.log(`[Worker] Entity linking complete.`);
+      console.log(`[Worker] Linked entities complete.`);
     }
 
-    // 9. Similarity Detection (Phase 2.5)
+    // 9. Relationship Extraction (Phase 3.1)
+    if (structuredData && structuredData.relationships && Array.isArray(structuredData.relationships)) {
+      console.log(`[Worker] Extracting ${structuredData.relationships.length} relationships...`);
+      try {
+        const { RelationshipService } = await import('../services/relationship');
+        const count = await RelationshipService.extractFromCapsule(capsuleId, structuredData.relationships);
+        console.log(`[Worker] Created/Updated ${count.length} relationships.`);
+      } catch (err) {
+        console.warn(`[Worker] Relationship extraction failed: ${err}`);
+      }
+    }
+
+    // 10. Similarity Detection (Phase 2.5)
     try {
       const similarCapsules = await DeduplicationService.findSimilarCapsules(embedding, 0.95);
       if (similarCapsules.length > 0) {

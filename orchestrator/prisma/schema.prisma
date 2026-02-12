@@ -38,6 +38,9 @@ model Capsule {
   feedbackCount   Int         @default(0)
   feedback        Feedback[]
   
+  // Relationships (Phase 3.1)
+  relationships   Relationship[]
+  
   @@index([contentHash])
 }
 
@@ -75,6 +78,10 @@ model Entity {
   type        String    // PERSON, ORG, LOCATION, event, etc.
   
   capsules    Capsule[] 
+  
+  // Relationships (Phase 3.1)
+  relationshipsFrom Relationship[] @relation("FromEntity")
+  relationshipsTo   Relationship[] @relation("ToEntity")
 
   @@unique([name, type])
   @@index([name])
@@ -154,4 +161,51 @@ enum FeedbackType {
   RATING
   CORRECTION
   FLAG
+}
+
+// Phase 3.1: Entity Relationships for Knowledge Graph
+model Relationship {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  
+  // Source entity
+  fromEntityId String
+  fromEntity   Entity @relation("FromEntity", fields: [fromEntityId], references: [id], onDelete: Cascade)
+  
+  // Target entity
+  toEntityId String
+  toEntity   Entity @relation("ToEntity", fields: [toEntityId], references: [id], onDelete: Cascade)
+  
+  // Relationship type
+  type      RelationshipType
+  
+  // Confidence score (0.0 - 1.0)
+  confidence Float @default(1.0)
+  
+  // Source capsule where this relationship was found
+  capsuleId String
+  capsule   Capsule @relation(fields: [capsuleId], references: [id], onDelete: Cascade)
+  
+  // Optional metadata (JSONB: {startDate, endDate, title, description, amount, etc.})
+  metadata  Json?
+  
+  @@unique([fromEntityId, toEntityId, type])
+  @@index([fromEntityId])
+  @@index([toEntityId])
+  @@index([type])
+  @@index([capsuleId])
+}
+
+enum RelationshipType {
+  WORKS_FOR
+  FOUNDED
+  INVESTED_IN
+  LOCATED_IN
+  ACQUIRED
+  PARTNERED_WITH
+  REPORTS_TO
+  OWNS
+  ATTENDED
+  MENTIONED_WITH
+  OTHER
 }

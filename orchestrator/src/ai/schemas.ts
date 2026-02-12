@@ -63,6 +63,25 @@ export interface FollowUp extends ActionBase {
 
 export type Action = Todo | Reminder | FollowUp;
 
+// Relationship Interfaces (Phase 3.1)
+export interface Relationship {
+  from: string;           // Entity name
+  fromType: string;       // Entity type
+  to: string;             // Entity name
+  toType: string;         // Entity type
+  type: 'WORKS_FOR' | 'FOUNDED' | 'INVESTED_IN' | 'LOCATED_IN' | 'ACQUIRED' |
+  'PARTNERED_WITH' | 'REPORTS_TO' | 'OWNS' | 'ATTENDED' | 'MENTIONED_WITH' | 'OTHER';
+  confidence: number;     // 0-1
+  metadata?: {
+    title?: string;       // Job title, role
+    startDate?: string;   // ISO date
+    endDate?: string;     // ISO date
+    amount?: string;      // Investment/acquisition amount
+    round?: string;       // Funding round
+    description?: string; // Additional context
+  };
+}
+
 // Extended Capsule Structure
 export interface CapsuleStructuredData {
   meta: {
@@ -77,11 +96,8 @@ export interface CapsuleStructuredData {
     key_points: string[];
   };
   entities: Entity[];
-  actions?: Action[]; // New field for actions
+  actions?: Action[];
+  relationships?: Relationship[]; // Phase 3.1: Entity relationships
   tags: string[];
-  relations?: {
-    target_id: string;
-    type: string;
-  }[];
   schema_version: string;
 }
