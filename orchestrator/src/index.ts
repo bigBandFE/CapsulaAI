@@ -1,6 +1,10 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
+import { initMinio } from './config/minio';
+import uploadRoutes from './routes/upload';
+import capsuleRoutes from './routes/capsule';
+import searchRoutes from './routes/search';
 
 dotenv.config();
 
@@ -9,6 +13,11 @@ const port = process.env.PORT || 3000;
 const prisma = new PrismaClient();
 
 app.use(express.json());
+
+// Routes
+app.use('/api/uploads', uploadRoutes);
+app.use('/api/capsules', capsuleRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/health', async (req, res) => {
@@ -21,6 +30,12 @@ app.get('/health', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Orchestrator running at http://localhost:${port}`);
-});
+// Initialize services and start server
+const startServer = async () => {
+  await initMinio();
+  app.listen(port, () => {
+    console.log(`Orchestrator running at http://localhost:${port}`);
+  });
+};
+
+startServer();
