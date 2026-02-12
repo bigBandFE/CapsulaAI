@@ -8,6 +8,7 @@ import searchRoutes from './routes/search';
 import ingestRoutes from './routes/ingest';
 import timelineRoutes from './routes/timeline';
 import entitiesRoutes from './routes/entities';
+import researchRoutes from './routes/research';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/ingest', ingestRoutes);
 app.use('/api/timeline', timelineRoutes);
 app.use('/api/entities', entitiesRoutes);
+app.use('/api/research', researchRoutes);
 
 // Health check
 app.get('/health', async (req, res) => {

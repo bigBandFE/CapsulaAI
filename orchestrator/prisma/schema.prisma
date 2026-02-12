@@ -90,3 +90,29 @@ enum SourceType {
   WEBSITE
   AUDIO
 }
+
+// Phase 2.6: Conversation History for RAG
+model Conversation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  title     String?  // Auto-generated from first query
+  messages  Message[]
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  createdAt      DateTime @default(now())
+  
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  role           String   // "user" or "assistant"
+  content        String   @db.Text
+  
+  // For assistant messages: array of {capsuleId, title, relevance}
+  sources        Json?
+  
+  @@index([conversationId])
+}
