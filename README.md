@@ -1,144 +1,68 @@
-# 🧠 CapsulaAI
+# CapsulaAI
 
-> A private AI knowledge hub powered by Docker — extracting, structuring, and retrieving your multi-modal information with local-first privacy.
+CapsulaAI is an intelligent knowledge management system that automatically processes information from various sources (URLs, files, images) using advanced Vision Language Models (VLM) and Large Language Models (LLM) to build a structured knowledge graph and provide research capabilities.
 
-## 🌟 Vision
+## Key Features
 
-**CapsulaAI** is a私有 AI knowledge中枢 that solves information fragmentation through automated multi-modal extraction and intelligent retrieval — all while keeping your sensitive data under your control.
+- **Multi-Source Ingestion**: Quickly capture knowledge from URLs, files, or text.
+- **VLM-Powered Analysis**: Uses state-of-the-art Vision models (Kimi-k2.5) to process images and complex documents.
+- **Knowledge Graph**: Automatically extracts entities and relationships to visualize your knowledge base using React Flow.
+- **AI Research**: Chat with your local knowledge base using RAG (Retrieval-Augmented Generation).
+- **Flexible Model Configuration**: Configure local and cloud models (MiniMax, Moonshot, etc.) directly in the UI.
+- **Reprocess Capability**: Re-run AI analysis on existing capsules with updated configurations to improve extraction results.
 
-## 🎯 The Problem We Solve
+## Visual Tour
 
-| Pain Point | CapsulaAI Solution |
-|------------|-------------------|
-| Information scattered everywhere (screenshots, docs, notes) | Unified ingestion via web & plugins |
-| Manual tagging is tedious | AI-automated structure extraction |
-| Privacy anxiety with cloud AI | **Local-first** architecture — zero data leakage by default |
+### Dashboard
+The central hub for capturing new information and monitoring processing status.
+![Dashboard](docs/images/screenshot_dashboard_1770987892173.png)
 
-## 🏗️ Architecture
+### Capsule Detail
+Deep dive into extracted knowledge, AI summaries, and entity relationships.
+![Capsule Detail](docs/images/screenshot_detail_1770987937549.png)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        User Layer                            │
-│    (Web Dashboard / Browser Plugins / API)                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Orchestrator (Node.js)                          │
-│    • Task Scheduling  • PII Sanitization  • API Routing       │
-└─────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┴───────────────────┐
-          ▼                                       ▼
-┌───────────────────┐               ┌───────────────────────┐
-│  Model Adapter    │               │    Local Worker        │
-│ (OpenAI-compatible│               │  • OCR Processing      │
-│  protocol)        │               │  • Embedding Generation│
-└───────────────────┘               └───────────────────────┘
-          │                                       │
-          ▼                                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Capsule Storage Layer                          │
-│    Postgres (Metadata) + pgvector (Vectors) + MinIO (Files) │
-└─────────────────────────────────────────────────────────────┘
-```
+### Knowledge Graph
+Visualize how different pieces of information are connected across your entire knowledge base.
+![Knowledge Graph](docs/images/screenshot_graph.png)
 
-### Core Components
+### Research
+Interact with your knowledge base through an AI-powered chat interface.
+![Research](docs/images/screenshot_research_1770988074170.png)
 
-- **Orchestrator**: Node.js-based task scheduler, PII detection, and API router
-- **Model Adapter**: OpenAI `/v1/chat/completions` compatible — works with Ollama, vLLM, or custom local models
-- **Capsule Storage**: PostgreSQL (metadata) + pgvector (vector search) + MinIO (local file storage)
-- **Local Worker**: Handles local OCR and embedding generation
+### Settings
+Seamlessly configure your AI endpoints and API keys for both local and cloud models.
+![Settings](docs/images/screenshot_settings_1770988090767.png)
 
-## ✨ Key Features
-
-### 1. 📦 Capsule Data Model
-All inputs are standardized into a unified **Capsule JSON** structure — the atomic unit of knowledge in CapsulaAI.
-
-### 2. 🔄 AI Pipeline (Fully Automated)
-
-```
-Input (Image/PDF/Text) → Local OCR → Model Extraction → Structured Capsule → Storage + Vector Index
-```
-
-### 3. 🛡️ Privacy Sanitizer
-
-When complex reasoning requires cloud models:
-1. **Local Detection**: Identify PII (personally identifiable information)
-2. **Placeholder Replacement**: Replace real names/numbers with `IDENTIFIER_A`, etc.
-3. **Result Restoration**: Restore original data after cloud processing
-
-**Result**: You get cloud AI capabilities without exposing sensitive data.
-
-### 4. 🔍 Intelligent Retrieval
-
-- **Semantic Search**: Ask questions like "Where are my travel documents for next year?"
-- **Multi-dimensional Filtering**: Filter by category (ID, ideas, work docs) and time
-- **Association Search (P2)**: Auto-suggest related capsules when viewing one
-
-## 🚀 Quick Start
+## Getting Started
 
 ### Prerequisites
+- Node.js & npm
+- API Keys for supported models (e.g., Moonshot Kimi, MiniMax)
 
-- Docker & Docker Compose
-- Local model API (Ollama, vLLM, or custom OpenAI-compatible API)
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   ```
+2. Install dependencies for both `web` and `orchestrator`:
+   ```bash
+   cd orchestrator && npm install
+   cd ../web && npm install
+   ```
+3. Set up environment variables in `orchestrator/.env` (use the Settings page in the UI to manage keys).
 
-### Deployment
+### Running the App
+1. Start the orchestrator (Backend):
+   ```bash
+   cd orchestrator && npm run dev
+   ```
+2. Start the web frontend:
+   ```bash
+   cd web && npm run dev
+   ```
+3. Open `http://localhost:5173` in your browser.
 
-```bash
-# Clone the repository
-git clone https://github.com/The-Zen-Story/CapsulaAI.git
-cd CapsulaAI
-
-# Configure your local model endpoint
-# Edit .env with your Ollama/vLLM API address
-
-# Start with Docker
-docker-compose up -d
-```
-
-### Configuration
-
-Set your local model API in the environment:
-```bash
-MODEL_API_BASE=http://localhost:11434/v1
-MODEL_NAME=qwen2.5:7b
-```
-
-## 📖 User Flow
-
-1. **Deploy & Configure**: Start Docker container, configure your local model API
-2. **Model Self-Test**: System runs test cases to confirm JSON output capability
-3. **Collect**: Snap photos or upload screenshots anytime
-4. **Automate**: System silently processes and archives in background
-5. **Retrieve**: Query via chat or search when you need information
-
-## 🔒 Privacy First
-
-- **Zero Data Leakage**: All traffic stays within Docker and local network by default
-- **Hardware Agnostic**: No GPU dependencies — inference load on your external model API
-- **Portable**: Independent data volumes for one-click backup and migration
-
-## 🎯 Business Value
-
-| Aspect | Value |
-|--------|-------|
-| **Moat** | Not the AI model — it's your **private structured knowledge graph** |
-| **Scalability** | Enterprise private knowledge base ↔ Personal NAS |
-| **Positioning** | The gap between "public cloud AI" and "pure offline tools" — **controllable advanced intelligence** |
-
-## 📅 Roadmap
-
-See our [Milestones](docs/milestones.md) for detailed development plans.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](docs/CONTRIBUTING.md) for details.
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-**Built with ❤️ by The Zen Story**
+## Technologies Used
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS, Shadcn UI, React Flow.
+- **Backend**: Node.js, Express, ts-node-dev.
+- **AI**: Integrations with Moonshot (VLM) and MiniMax (LLM).
