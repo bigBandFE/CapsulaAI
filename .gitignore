@@ -4,7 +4,7 @@ dist/
 npm-debug.log
 
 # Environment
-.env
+# .env (Tracked as template)
 
 # Docker Volumes (Local)
 postgres_data/

@@ -10,6 +10,7 @@ import timelineRoutes from './routes/timeline';
 import entitiesRoutes from './routes/entities';
 import researchRoutes from './routes/research';
 import feedbackRoutes from './routes/feedback';
+import settingsRoutes from './routes/settings';
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use('/api/entities', entitiesRoutes); // Original entities route
 app.use('/api/research', researchRoutes);
 app.use('/api/feedback', feedbackRoutes); // Original feedback route
 app.use('/api/graph', graphRoutes);       // Phase 3.1 - Added as per instruction
+app.use('/api/settings', settingsRoutes); // Model configuration API
 
 // Health check
 app.get('/health', async (req, res) => {

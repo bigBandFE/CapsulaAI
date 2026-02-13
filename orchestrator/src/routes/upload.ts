@@ -45,4 +45,29 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
   }
 });
 
+// Serve asset by streaming directly from MinIO
+router.get('/:objectName', async (req: Request, res: Response) => {
+  const { objectName } = req.params;
+
+  try {
+    // Get object metadata for Content-Type
+    const stat = await minioClient.statObject(BUCKET_NAME, objectName);
+    const contentType = stat.metaData?.['content-type'] || 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+
+    // Stream the file directly to the response
+    const dataStream = await minioClient.getObject(BUCKET_NAME, objectName);
+    dataStream.pipe(res);
+  } catch (err: any) {
+    if (err?.code === 'NoSuchKey' || err?.code === 'NotFound') {
+      res.status(404).json({ error: 'Asset not found' });
+    } else {
+      console.error('Error streaming asset from MinIO:', err);
+      res.status(500).json({ error: 'Failed to serve asset' });
+    }
+  }
+});
+
 export default router;

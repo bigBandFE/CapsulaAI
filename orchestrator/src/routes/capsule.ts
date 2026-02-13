@@ -119,4 +119,66 @@ router.get('/:id/feedback', async (req: Request, res: Response) => {
   }
 });
 
+// Reprocess Capsule — force reset to PENDING regardless of status
+router.post('/:id/reprocess', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const capsule = await prisma.capsule.findUnique({ where: { id } });
+
+    if (!capsule) {
+      return res.status(404).json({ error: 'Capsule not found' });
+    }
+
+    // Allow reprocessing from ANY state (completed, failed, even pending to restart)
+    const updated = await prisma.capsule.update({
+      where: { id },
+      data: {
+        status: CapsuleStatus.PENDING,
+        structuredData: undefined,  // Clear previous data
+        isSanitized: false, // Reset flags if needed
+      },
+      include: { assets: true }
+    });
+
+    console.log(`[API] Capsule ${id} reset to PENDING for reprocessing.`);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error reprocessing capsule:', error);
+    res.status(500).json({ error: 'Failed to reprocess capsule' });
+  }
+});
+
+// Retry Failed Capsule — reset to PENDING for reprocessing (Legacy/Specific)
+router.post('/:id/retry', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const capsule = await prisma.capsule.findUnique({ where: { id } });
+
+    if (!capsule) {
+      return res.status(404).json({ error: 'Capsule not found' });
+    }
+
+    if (capsule.status !== 'FAILED' && capsule.status !== 'PROCESSING') {
+      return res.status(400).json({ error: `Cannot retry capsule with status: ${capsule.status}` });
+    }
+
+    const updated = await prisma.capsule.update({
+      where: { id },
+      data: {
+        status: CapsuleStatus.PENDING,
+        structuredData: undefined,  // Clear previous (potentially partial) data
+      },
+      include: { assets: true }
+    });
+
+    console.log(`[API] Capsule ${id} reset to PENDING for retry.`);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error retrying capsule:', error);
+    res.status(500).json({ error: 'Failed to retry capsule' });
+  }
+});
+
 export default router;

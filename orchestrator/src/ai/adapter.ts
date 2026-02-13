@@ -1,5 +1,5 @@
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 
 export interface LLMConfig {
   endpoint: string;
@@ -9,7 +9,7 @@ export interface LLMConfig {
 
 export type ContentBlock =
   | { type: 'text'; text: string }
-  | { type: 'image_url'; image_url: { url: string } }; // OpenAI style, mapped to Anthropic
+  | { type: 'image_url'; image_url: { url: string } };
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -26,104 +26,107 @@ export interface ChatResponse {
 }
 
 export class ModelAdapter {
-  private client: Anthropic;
+  private client: OpenAI;
   private modelName: string;
 
   constructor(config: LLMConfig) {
     this.modelName = config.modelName;
 
-    // Minimax Anthropic Compatibility Configuration
-    // The key point is baseURL: "https://api.minimax.io/anthropic" (from docs)
-    // or whatever the user configures in .env
-    this.client = new Anthropic({
+    // Initialize OpenAI Client with custom base URL
+    // Compatible with MiniMax, Moonshot (Kimi), and standard OpenAI
+    this.client = new OpenAI({
       baseURL: config.endpoint,
       apiKey: config.apiKey || 'sk-dummy',
+      dangerouslyAllowBrowser: true // Just in case, though this is backend
     });
+
+    console.log(`[ModelAdapter] Initialized for ${config.modelName} @ ${config.endpoint}`);
+    if (config.apiKey) {
+      console.log(`[ModelAdapter] API Key used: ${config.apiKey.substring(0, 8)}...${config.apiKey.substring(config.apiKey.length - 4)}`);
+    } else {
+      console.warn('[ModelAdapter] No API Key provided!');
+    }
   }
 
   async chatCompletion(messages: ChatMessage[], jsonMode: boolean = false): Promise<ChatResponse> {
     try {
-      // Convert standard messages to Anthropic format
-      // Anthropic requires 'system' to be a top-level parameter, not in messages list
-      let systemPrompt: string | undefined = undefined;
-      const anthropicMessages: Anthropic.MessageParam[] = [];
-
-      for (const msg of messages) {
-        if (msg.role === 'system') {
-          if (typeof msg.content === 'string') {
-            systemPrompt = msg.content;
-          } else {
-            console.warn('System prompt should be string');
-            systemPrompt = JSON.stringify(msg.content);
-          }
+      // Convert internal messages to OpenAI format
+      const openaiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = messages.map(msg => {
+        if (typeof msg.content === 'string') {
+          return {
+            role: msg.role,
+            content: msg.content
+          } as OpenAI.Chat.ChatCompletionMessageParam;
         } else {
-          // Handle Multimodal Content
-          let processedContent: string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>;
-
-          if (typeof msg.content === 'string') {
-            processedContent = msg.content;
-          } else {
-            // Map generic ContentBlock to Anthropic Block
-            processedContent = msg.content.map(block => {
-              if (block.type === 'image_url') {
-                // Determine media type from base64 header or default to jpeg
-                // e.g., data:image/jpeg;base64,...
-                const match = block.image_url.url.match(/^data:(image\/[a-z]+);base64,(.+)$/);
-                const mediaType = (match ? match[1] : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-                const data = match ? match[2] : block.image_url.url; // Fallback if raw base64
-
-                return {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: mediaType,
-                    data: data
-                  }
-                } as Anthropic.ImageBlockParam;
-              } else {
-                return { type: 'text', text: block.text } as Anthropic.TextBlockParam;
-              }
-            });
-          }
-
-          anthropicMessages.push({
-            role: msg.role as 'user' | 'assistant',
-            content: processedContent as any // Anthropic SDK types can be tricky
+          // Map ContentBlocks to OpenAI ContentParts
+          const contentParts = msg.content.map(block => {
+            if (block.type === 'image_url') {
+              return {
+                type: 'image_url',
+                image_url: {
+                  url: block.image_url.url
+                }
+              } as OpenAI.Chat.ChatCompletionContentPartImage;
+            } else {
+              return {
+                type: 'text',
+                text: block.text
+              } as OpenAI.Chat.ChatCompletionContentPartText;
+            }
           });
+
+          return {
+            role: msg.role,
+            content: contentParts
+          } as OpenAI.Chat.ChatCompletionMessageParam;
+        }
+      });
+
+      // Add JSON instruction if requested
+      if (jsonMode) {
+        // Find or create system message
+        let systemMsg = openaiMessages.find(m => m.role === 'system');
+        if (!systemMsg) {
+          systemMsg = { role: 'system', content: '' } as OpenAI.Chat.ChatCompletionSystemMessageParam;
+          openaiMessages.unshift(systemMsg);
+        }
+
+        // Append instruction
+        const jsonInstruction = "Return valid JSON only.";
+        if (typeof systemMsg.content === 'string') {
+          if (!systemMsg.content.includes('JSON')) {
+            systemMsg.content += `\n${jsonInstruction}`;
+          }
         }
       }
 
-      // Add JSON instruction for basic models if jsonMode is requested
-      // (Anthropic models are usually smart enough, but prompt reinforcement helps)
-      if (jsonMode && !systemPrompt?.includes('JSON')) {
-        const jsonInstruction = "Return valid JSON only.";
-        if (systemPrompt) systemPrompt += `\n${jsonInstruction}`;
-        else systemPrompt = jsonInstruction;
-      }
-
-      const response = await this.client.messages.create({
+      const response = await this.client.chat.completions.create({
         model: this.modelName,
-        max_tokens: 4096, // Minimax/Anthropic usually requires max_tokens
-        system: systemPrompt,
-        messages: anthropicMessages,
+        messages: openaiMessages,
+        response_format: jsonMode ? { type: 'json_object' } : undefined,
+        max_tokens: 4096,
       });
 
-      // Handle response content
-      let content = '';
-      if (response.content && response.content.length > 0) {
-        // Anthropic returns a list of blocks (text, thinking, tool_use)
-        // We prioritize text blocks
-        for (const block of response.content) {
-          if (block.type === 'text') {
-            content += block.text;
-          }
+      const choice = response.choices[0];
+      let content = choice.message.content || '';
+
+      // Clean up <think> blocks (DeepSeek/MiniMax style)
+      // Removes <think>...</think> and unclosed <think>...
+      content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      content = content.replace(/<think>[\s\S]*/g, '').trim();
+
+      // If jsonMode is enabled, try to extract JSON if it's wrapped in markdown
+      if (jsonMode) {
+        const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/```\n([\s\S]*?)\n```/);
+        if (jsonMatch) {
+          content = jsonMatch[1].trim();
         }
       }
 
       const usage = {
-        totalTokens: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0),
-        inputTokens: response.usage?.input_tokens || 0,
-        outputTokens: response.usage?.output_tokens || 0
+        totalTokens: response.usage?.total_tokens || 0,
+        inputTokens: response.usage?.prompt_tokens || 0,
+        outputTokens: response.usage?.completion_tokens || 0
       };
 
       return {
@@ -131,7 +134,7 @@ export class ModelAdapter {
         usage,
       };
     } catch (error) {
-      console.error('ModelAdapter (Anthropic SDK) Execution Failed:', error);
+      console.error('ModelAdapter (OpenAI SDK) Execution Failed:', error);
       throw error;
     }
   }

@@ -5,46 +5,71 @@ import { generateEmbedding } from '../services/embedding';
 import { Sanitizer } from '../services/sanitizer';
 import { VisionService } from '../services/vision';
 import { DeduplicationService } from '../services/deduplication';
+import { minioClient, BUCKET_NAME } from '../config/minio';
+import { loadSettings, onSettingsUpdate, type ModelSettings } from '../routes/settings';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 const prisma = new PrismaClient();
 
-// Configuration for the worker (could be passed in or loaded from env)
-// Configuration for the worker
-const localConfig: LLMConfig = {
-  endpoint: process.env.LOCAL_MODEL_ENDPOINT || 'http://host.docker.internal:11434/v1',
-  modelName: process.env.LOCAL_MODEL_NAME || 'qwen2.5:7b',
-  apiKey: process.env.LOCAL_API_KEY
-};
+// Dynamic config — loaded from settings file (falls back to env vars)
+function buildConfigs(settings: ModelSettings) {
+  const localConfig: LLMConfig = {
+    endpoint: settings.local.endpoint,
+    modelName: settings.local.modelName,
+    apiKey: settings.local.apiKey,
+  };
+  const cloudConfig: LLMConfig = {
+    endpoint: settings.cloud.endpoint,
+    modelName: settings.cloud.modelName,
+    apiKey: settings.cloud.apiKey,
+  };
+  const visionConfig: LLMConfig = {
+    endpoint: settings.vision.endpoint,
+    modelName: settings.vision.modelName,
+    apiKey: settings.vision.apiKey,
+  };
+  return { localConfig, cloudConfig, visionConfig };
+}
 
-const cloudConfig: LLMConfig = {
-  endpoint: process.env.CLOUD_MODEL_ENDPOINT || '',
-  modelName: process.env.CLOUD_MODEL_NAME || '',
-  apiKey: process.env.CLOUD_API_KEY
-};
+let currentSettings = loadSettings();
+let { localConfig, cloudConfig, visionConfig } = buildConfigs(currentSettings);
 
-const localAdapter = new ModelAdapter(localConfig);
-const cloudAdapter = new ModelAdapter(cloudConfig);
+let localAdapter = new ModelAdapter(localConfig);
+let cloudAdapter = new ModelAdapter(cloudConfig);
 
 let localCapability = ModelCapability.BASIC;
 let cloudCapability = ModelCapability.UNUSABLE;
 
+// Hot-reload handler — called by settings API when config changes
+export function reloadConfig(settings: ModelSettings) {
+  console.log('[Worker] Hot-reloading model configuration...');
+  currentSettings = settings;
+  const configs = buildConfigs(settings);
+  localConfig = configs.localConfig;
+  cloudConfig = configs.cloudConfig;
+  visionConfig = configs.visionConfig;
+
+  localAdapter = new ModelAdapter(localConfig);
+  cloudAdapter = new ModelAdapter(cloudConfig);
+
+  // Re-configure vision (always VLM)
+  VisionService.configure(visionConfig);
+
+  console.log('[Worker] Config reloaded. Local:', localConfig.endpoint, localConfig.modelName);
+  console.log('[Worker] Config reloaded. Cloud:', cloudConfig.endpoint, cloudConfig.modelName);
+}
+
 export const startWorker = async () => {
   console.log('Worker started. Initializing AI capabilities...');
 
-  // Configure Vision Strategy (Specific Vision Model for OCR)
-  // Use dedicated Vision Model config if available, otherwise inherit from Local config
-  const visionConfig: LLMConfig = {
-    endpoint: process.env.LOCAL_VISION_MODEL_ENDPOINT || localConfig.endpoint,
-    modelName: process.env.LOCAL_VISION_MODEL_NAME || localConfig.modelName,
-    apiKey: process.env.LOCAL_VISION_API_KEY || localConfig.apiKey
-  };
+  // Configure Vision (always VLM)
+  VisionService.configure(visionConfig);
+  console.log(`[Worker] VLM configured: ${visionConfig.endpoint} / ${visionConfig.modelName}`);
 
-  // Configure Vision Strategy
-  // Dynamic switching via Env Var
-  const strategy = (process.env.VISION_STRATEGY as 'TESSERACT' | 'LLM') || 'TESSERACT';
-  console.log(`[Worker] Vision Strategy configured to: ${strategy}`);
-
-  VisionService.configure(strategy, strategy === 'LLM' ? visionConfig : undefined);
+  // Register hot-reload callback
+  onSettingsUpdate(reloadConfig);
 
   // Check Local
   try {
@@ -95,32 +120,53 @@ const processCapsule = async (capsuleId: string) => {
     const capsule = await prisma.capsule.findUnique({ where: { id: capsuleId } });
     if (!capsule) throw new Error('Capsule content missing');
 
-    // 0. Vision/OCR Pipeline (if applicable)
-    // If source is IMAGE or PDF (future), extract text first.
-    if ((capsule.sourceType === 'IMAGE' || capsule.sourceType === 'PDF') && !capsule.originalContent) {
-      console.log(`[Worker] Image/PDF detected. Running OCR...`);
-      // Find the first asset (MVP)
-      const asset = await prisma.asset.findFirst({ where: { capsuleId } });
-      if (asset) {
-        try {
-          // We need to resolve the local path. For Docker, MinIO volume is mapped? 
-          // actually, tesseract needs local file. 
-          // For now, let's assume we can access it via the shared volume or download it.
-          // SIMPLIFICATION: We will mock the OCR for now effectively because downloading from MinIO 
-          // inside the container requires MinIO client.
-          // Let's import the service dynamically to avoid issues if not installed
-          const { VisionService } = await import('../services/vision');
-          // In a real app, we'd download asset.storagePath to a temp file
-          // capsule.originalContent = await VisionService.extractText(downloadedFile);
-
-          // For prototype demonstration without heavy MinIO plumbing:
-          capsule.originalContent = "[OCR] Image Content Placeholder";
-
-          // If we had tesseract working:
-          // capsule.originalContent = await VisionService.extractText(asset.storagePath);
-        } catch (e) {
-          console.warn(`[Worker] OCR Failed: ${e}`);
+    // 0. Vision/VLM Analysis Pipeline
+    // For ANY capsule with uploaded files, run VLM to extract/analyze actual content.
+    // The frontend may have set originalContent to something like "Uploaded: filename.png"
+    // which is not meaningful — we need to analyze the actual file.
+    const asset = await prisma.asset.findFirst({ where: { capsuleId } });
+    if (asset) {
+      console.log(`[Worker] File asset detected (${capsule.sourceType}). Running VLM Pipeline...`);
+      try {
+        // Download file from MinIO to temp directory
+        const tempDir = path.join(os.tmpdir(), 'capsula-vision');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
         }
+        const tempFile = path.join(tempDir, asset.storagePath);
+        console.log(`[Worker] Downloading ${asset.storagePath} from MinIO → ${tempFile}`);
+
+        const dataStream = await minioClient.getObject(BUCKET_NAME, asset.storagePath);
+        const writeStream = fs.createWriteStream(tempFile);
+
+        await new Promise<void>((resolve, reject) => {
+          dataStream.pipe(writeStream);
+          dataStream.on('error', reject);
+          writeStream.on('finish', resolve);
+          writeStream.on('error', reject);
+        });
+
+        console.log(`[Worker] Downloaded. Running VLM analysis...`);
+        const extractedText = await VisionService.analyzeFile(tempFile);
+
+        if (extractedText && extractedText.trim().length > 0) {
+          capsule.originalContent = extractedText;
+          console.log(`[Worker] VLM extracted ${extractedText.length} chars of content.`);
+        } else {
+          capsule.originalContent = `[VLM] No content could be extracted from ${asset.fileName || asset.storagePath}`;
+        }
+
+        // Persist extracted content to DB immediately so it's not lost
+        await prisma.capsule.update({
+          where: { id: capsuleId },
+          data: { originalContent: capsule.originalContent }
+        });
+
+        // Clean up temp file
+        try { fs.unlinkSync(tempFile); } catch (_) { /* ignore cleanup errors */ }
+      } catch (e) {
+        console.warn(`[Worker] VLM Pipeline Failed: ${e}`);
+        capsule.originalContent = `[VLM Error] Failed to process file: ${asset.fileName || asset.storagePath}`;
       }
     }
 
@@ -178,6 +224,15 @@ const processCapsule = async (capsuleId: string) => {
       activeAdapter = cloudAdapter;
       activeCapability = cloudCapability;
       usingCloud = true;
+    }
+
+    // Source-type routing override:
+    // WEBSITE capsules always use Local LLM for faster extraction speed
+    if (capsule.sourceType === 'WEBSITE' && localCapability !== ModelCapability.UNUSABLE) {
+      console.log(`[Worker] WEBSITE source → forcing Local LLM for faster extraction.`);
+      activeAdapter = localAdapter;
+      activeCapability = localCapability;
+      usingCloud = false;
     }
 
     const contentToProcess = usingCloud ? sanitized : capsule.originalContent;
