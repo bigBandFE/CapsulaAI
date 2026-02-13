@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+model Capsule {
+  id              String      @id @default(uuid())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  status          CapsuleStatus @default(PENDING)
+  sourceType      SourceType
+  originalContent String?       @db.Text
+  
+  // Stored as JSONB in Postgres
+  structuredData  Json?          
+  
+  assets          Asset[]
+  embeddings      Embedding[]
+  entities        Entity[]
+  
+  // Privacy
+  isSanitized     Boolean     @default(false)
+  
+  // Deduplication (Phase 2.5)
+  contentHash     String?     @unique
+  similarTo       String?     // Reference to similar Capsule ID
+  similarityScore Float?      // 0.0 - 1.0
+  
+  // Quality metrics (Phase 2.7)
+  qualityScore    Float?      @default(0)
+  feedbackCount   Int         @default(0)
+  feedback        Feedback[]
+  
+  // Relationships (Phase 3.1)
+  relationships   Relationship[]
+  
+  @@index([contentHash])
+}
+
+model Asset {
+  id          String   @id @default(uuid())
+  capsuleId   String
+  capsule     Capsule  @relation(fields: [capsuleId], references: [id])
+  
+  storagePath String
+  mimeType    String
+  size        Int
+  fileName    String?
+}
+
+model Embedding {
+  id          String   @id @default(uuid())
+  capsuleId   String
+  capsule     Capsule  @relation(fields: [capsuleId], references: [id])
+  
+  // Using Unsupported for pgvector until native Prisma support is full or for raw queries
+  // But typically with previewFeatures we can use it more natively now, 
+  // however "Unsupported" is the safest raw way if not using the very latest typed features for vector operations
+  vector      Unsupported("vector(1536)") 
+  
+  chunkIndex  Int      @default(0)
+  contentChunk String? @db.Text
+}
+
+model Entity {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  type        String    // PERSON, ORG, LOCATION, event, etc.
+  
+  capsules    Capsule[] 
+  
+  // Relationships (Phase 3.1)
+  relationshipsFrom Relationship[] @relation("FromEntity")
+  relationshipsTo   Relationship[] @relation("ToEntity")
+
+  @@unique([name, type])
+  @@index([name])
+}
+
+enum CapsuleStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  ARCHIVED
+}
+
+enum SourceType {
+  NOTE
+  IMAGE
+  PDF
+  WEBSITE
+  AUDIO
+}
+
+// Phase 2.6: Conversation History for RAG
+model Conversation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  title     String?  // Auto-generated from first query
+  messages  Message[]
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  createdAt      DateTime @default(now())
+  
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  role           String   // "user" or "assistant"
+  content        String   @db.Text
+  
+  // For assistant messages: array of {capsuleId, title, relevance}
+  sources        Json?
+  
+  @@index([conversationId])
+}
+
+// Phase 2.7: Feedback System for Self-Improving Memory
+model Feedback {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  
+  capsuleId String
+  capsule   Capsule  @relation(fields: [capsuleId], references: [id], onDelete: Cascade)
+  
+  // Feedback type
+  type      FeedbackType
+  
+  // Rating (1-5 stars)
+  rating    Int?
+  
+  // User corrections (JSONB: { field, oldValue, newValue, reason })
+  correction Json?
+  
+  // Flags
+  flagReason String?  // "incorrect", "incomplete", "irrelevant", "duplicate"
+  
+  // Optional comment
+  comment   String?  @db.Text
+  
+  @@index([capsuleId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum FeedbackType {
+  RATING
+  CORRECTION
+  FLAG
+}
+
+// Phase 3.1: Entity Relationships for Knowledge Graph
+model Relationship {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  
+  // Source entity
+  fromEntityId String
+  fromEntity   Entity @relation("FromEntity", fields: [fromEntityId], references: [id], onDelete: Cascade)
+  
+  // Target entity
+  toEntityId String
+  toEntity   Entity @relation("ToEntity", fields: [toEntityId], references: [id], onDelete: Cascade)
+  
+  // Relationship type
+  type      RelationshipType
+  
+  // Confidence score (0.0 - 1.0)
+  confidence Float @default(1.0)
+  
+  // Source capsule where this relationship was found
+  capsuleId String
+  capsule   Capsule @relation(fields: [capsuleId], references: [id], onDelete: Cascade)
+  
+  // Optional metadata (JSONB: {startDate, endDate, title, description, amount, etc.})
+  metadata  Json?
+  
+  @@unique([fromEntityId, toEntityId, type])
+  @@index([fromEntityId])
+  @@index([toEntityId])
+  @@index([type])
+  @@index([capsuleId])
+}
+
+enum RelationshipType {
+  WORKS_FOR
+  FOUNDED
+  INVESTED_IN
+  LOCATED_IN
+  ACQUIRED
+  PARTNERED_WITH
+  REPORTS_TO
+  OWNS
+  ATTENDED
+  MENTIONED_WITH
+  OTHER
+}

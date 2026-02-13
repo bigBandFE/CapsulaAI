@@ -1,0 +1,21 @@
+# Node
+node_modules/
+dist/
+npm-debug.log
+
+# Environment
+# .env (Tracked as template)
+
+# Docker Volumes (Local)
+postgres_data/
+minio_data/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Brain/Memory (if stored locally in project, though usually in user home)
+.gemini/

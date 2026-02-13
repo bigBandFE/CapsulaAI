@@ -1,0 +1,15 @@
+feat(phase3.1): Implement Entity Relationships and Graph API
+
+- Schema: Adds `Relationship` model and `RelationshipType` enum to Prisma schema.
+- Schema: Updates `Entity` and `Capsule` models with relationship fields.
+- Migration: Adds SQL migration for relationships table.
+- AI: Updates prompt engineering to extract structured relationships (works_for, founded, etc.).
+- Service: Implements `RelationshipService` for extraction, path finding (BFS), and graph stats.
+- API: Adds `/api/graph` routes for visualization, stats, and path finding.
+- API: Updates `/api/entities` with relationship and related entity endpoints.
+- Worker: Integrates relationship extraction step into capsule processing pipeline.
+- Worker: Fixes type validation and confidence parsing for robustness.
+- Config: Installs `cors` for API access and updates dependencies.
+- Scripts: Adds verification scripts for validating relationship extraction end-to-end.
+
+Completes Phase 3.1 of the CapsulaAI roadmap.

@@ -1,144 +1,133 @@
 # 🧠 CapsulaAI
 
-> A private AI knowledge hub powered by Docker — extracting, structuring, and retrieving your multi-modal information with local-first privacy.
+## The Private AI Memory Engine
 
-## 🌟 Vision
+### **Local-First Intelligence. Your Knowledge. Your Control.**
 
-**CapsulaAI** is a私有 AI knowledge中枢 that solves information fragmentation through automated multi-modal extraction and intelligent retrieval — all while keeping your sensitive data under your control.
-
-## 🎯 The Problem We Solve
-
-| Pain Point | CapsulaAI Solution |
-|------------|-------------------|
-| Information scattered everywhere (screenshots, docs, notes) | Unified ingestion via web & plugins |
-| Manual tagging is tedious | AI-automated structure extraction |
-| Privacy anxiety with cloud AI | **Local-first** architecture — zero data leakage by default |
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        User Layer                            │
-│    (Web Dashboard / Browser Plugins / API)                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Orchestrator (Node.js)                          │
-│    • Task Scheduling  • PII Sanitization  • API Routing       │
-└─────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┴───────────────────┐
-          ▼                                       ▼
-┌───────────────────┐               ┌───────────────────────┐
-│  Model Adapter    │               │    Local Worker        │
-│ (OpenAI-compatible│               │  • OCR Processing      │
-│  protocol)        │               │  • Embedding Generation│
-└───────────────────┘               └───────────────────────┘
-          │                                       │
-          ▼                                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Capsule Storage Layer                          │
-│    Postgres (Metadata) + pgvector (Vectors) + MinIO (Files) │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Core Components
-
-- **Orchestrator**: Node.js-based task scheduler, PII detection, and API router
-- **Model Adapter**: OpenAI `/v1/chat/completions` compatible — works with Ollama, vLLM, or custom local models
-- **Capsule Storage**: PostgreSQL (metadata) + pgvector (vector search) + MinIO (local file storage)
-- **Local Worker**: Handles local OCR and embedding generation
-
-## ✨ Key Features
-
-### 1. 📦 Capsule Data Model
-All inputs are standardized into a unified **Capsule JSON** structure — the atomic unit of knowledge in CapsulaAI.
-
-### 2. 🔄 AI Pipeline (Fully Automated)
-
-```
-Input (Image/PDF/Text) → Local OCR → Model Extraction → Structured Capsule → Storage + Vector Index
-```
-
-### 3. 🛡️ Privacy Sanitizer
-
-When complex reasoning requires cloud models:
-1. **Local Detection**: Identify PII (personally identifiable information)
-2. **Placeholder Replacement**: Replace real names/numbers with `IDENTIFIER_A`, etc.
-3. **Result Restoration**: Restore original data after cloud processing
-
-**Result**: You get cloud AI capabilities without exposing sensitive data.
-
-### 4. 🔍 Intelligent Retrieval
-
-- **Semantic Search**: Ask questions like "Where are my travel documents for next year?"
-- **Multi-dimensional Filtering**: Filter by category (ID, ideas, work docs) and time
-- **Association Search (P2)**: Auto-suggest related capsules when viewing one
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Docker & Docker Compose
-- Local model API (Ollama, vLLM, or custom OpenAI-compatible API)
-
-### Deployment
-
-```bash
-# Clone the repository
-git clone https://github.com/The-Zen-Story/CapsulaAI.git
-cd CapsulaAI
-
-# Configure your local model endpoint
-# Edit .env with your Ollama/vLLM API address
-
-# Start with Docker
-docker-compose up -d
-```
-
-### Configuration
-
-Set your local model API in the environment:
-```bash
-MODEL_API_BASE=http://localhost:11434/v1
-MODEL_NAME=qwen2.5:7b
-```
-
-## 📖 User Flow
-
-1. **Deploy & Configure**: Start Docker container, configure your local model API
-2. **Model Self-Test**: System runs test cases to confirm JSON output capability
-3. **Collect**: Snap photos or upload screenshots anytime
-4. **Automate**: System silently processes and archives in background
-5. **Retrieve**: Query via chat or search when you need information
-
-## 🔒 Privacy First
-
-- **Zero Data Leakage**: All traffic stays within Docker and local network by default
-- **Hardware Agnostic**: No GPU dependencies — inference load on your external model API
-- **Portable**: Independent data volumes for one-click backup and migration
-
-## 🎯 Business Value
-
-| Aspect | Value |
-|--------|-------|
-| **Moat** | Not the AI model — it's your **private structured knowledge graph** |
-| **Scalability** | Enterprise private knowledge base ↔ Personal NAS |
-| **Positioning** | The gap between "public cloud AI" and "pure offline tools" — **controllable advanced intelligence** |
-
-## 📅 Roadmap
-
-See our [Milestones](docs/milestones.md) for detailed development plans.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](docs/CONTRIBUTING.md) for details.
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
+> **⚡ One-Line Pitch:**
+> `CapsulaAI = PrivateGPT × Memory Graph × Local-First Knowledge OS`
 
 ---
 
-**Built with ❤️ by The Zen Story**
+# 🚀 Capture everything. Structure automatically. Search your life — privately.
+
+**CapsulaAI** is a Local-First AI system that transforms your screenshots, notes, documents, and ideas into structured **Knowledge Capsules**—building a private memory layer that evolves with you.
+
+* **🔒 No Forced Cloud:** Your data stays on your hardware.
+* **🚫 No Hidden Telemetry:** We don't track your thoughts.
+* **🔓 No Platform Lock-in:** Human-owned intelligence, forever.
+
+---
+
+# 🌌 The Manifesto
+
+AI is changing how we think, work, and remember. But most AI systems were built for the cloud—not for you. Your conversations, ideas, and documents are processed elsewhere and stored beyond your control.
+
+**CapsulaAI exists because we believe in a different future:**
+
+* AI runs **with you**, not above you.
+* Knowledge belongs **to its creator**, not to a platform.
+* Memory is a **living system**, not just a chat history.
+
+---
+
+# ⚡ What Happens When You Use CapsulaAI?
+
+| You Drop In (Input) | CapsulaAI Transforms Into... | Ask Later (Value) |
+| --- | --- | --- |
+| 🪪 A passport screenshot | **Structured Capsule** | "What is my passport number?" |
+| 📝 A messy meeting note | **Semantic Memory** | "What were the action items from Tuesday?" |
+| 💡 A random 3 AM idea | **Knowledge Graph** | "How does this connect to my AI project?" |
+
+### **The Workflow:**
+
+`Raw Information` ➔ `Structured Capsules` ➔ `Private AI Memory`
+
+---
+
+# ✨ Core Capabilities
+
+### 🧩 Knowledge Capsules
+
+Convert text, images, and documents into structured memory with automatic tagging, classification, and context-aware relationships.
+
+### 🔍 Private Semantic Search
+
+Search across your entire life with natural language:
+
+> *"What ideas did I have about private AI last year?"* > *"Who did I meet during my Tokyo trip?"*
+
+### 👁 Multi-Modal Understanding
+
+* **OCR** for screenshots and documents.
+* **Visual Extraction** for identity and document awareness.
+* **Entity Linking** to connect people, places, and concepts.
+
+### 🧠 Hybrid Intelligence
+
+Local models (Ollama/LocalAI) handle the heavy lifting. Cloud models are strictly optional and used only when:
+
+* Long-form reasoning is required.
+* The user explicitly enables it.
+* Context is minimized via a **Privacy Guard**.
+
+---
+
+# 🔒 Principles
+
+* **Private by Architecture:** Privacy is not a toggle; it's enforced by design via local LLMs and self-hosting.
+* **Local-First Intelligence:** The system starts locally. The cloud is an afterthought, not a requirement.
+* **Memory, Not Chat:** Chatbots forget. CapsulaAI remembers through an evolving memory graph of entities and relations.
+
+---
+
+# 🏗 Architecture
+
+```text
+      Client Interface
+             │
+      Node.js Orchestrator
+             │
+    ┌────────┴────────┬────────────────┐
+Capsule Engine  Vector Database  Local LLM
+    └────────┬────────┴────────────────┘
+             │
+      Privacy Guard / Context Filter
+             │
+      (Optional) Cloud LLM
+
+```
+
+---
+
+# 🧭 Roadmap
+
+* **Phase 1 — Memory Foundation:** Capsule creation, local processing, and private semantic search.
+* **Phase 2 — Intelligence Layer:** Entity systems (Person/Org/Doc) and action extraction.
+* **Phase 3 — Knowledge Evolution:** Graph visualization and self-improving memory.
+
+---
+
+# 🚀 Quick Start
+
+```bash
+# Clone the engine
+git clone https://github.com/yourname/CapsulaAI
+cd CapsulaAI
+
+# Launch the stack
+docker compose up -d
+
+```
+
+Open **`http://localhost:3000`** to start building your private brain.
+
+---
+
+# 🤝 Contributing & Vision
+
+CapsulaAI is built for builders, professionals, and teams who believe AI should run for them—not on their data.
+
+**⭐ If you believe in human-owned intelligence, consider starring the project.**
+
+> **Capsula** (Latin) — *A small container.* > Designed not just to store information, but to **preserve memory**.
