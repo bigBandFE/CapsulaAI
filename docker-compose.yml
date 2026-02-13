@@ -32,18 +32,25 @@ services:
     networks:
       - capsula_net
 
-  # Main Application Logic
+  # Backend: Orchestrator
   orchestrator:
     build: ./orchestrator
     container_name: capsula_orchestrator
-    command: npm run dev
+    # Production start command (assumes npm run build runs in Dockerfile or npm start runs ts-node/node)
+    # The Dockerfile CMD is ["npm", "start"]. 
+    # If we want to use that, we remove 'command' override, OR set it explicitly.
+    command: npm start
+    env_file:
+      - ./orchestrator/.env
     environment:
+      # Networking overrides (Precedence over env_file)
       DATABASE_URL: "postgresql://capsula:capsula_password@db:5432/capsula_core?schema=public"
       MINIO_ENDPOINT: "minio"
       MINIO_PORT: 9000
       MINIO_ACCESS_KEY: "capsula"
       MINIO_SECRET_KEY: "capsula_password"
       MINIO_BUCKET: "capsules"
+      # Model configs and keys come from env_file
     depends_on:
       - db
       - minio
@@ -51,10 +58,26 @@ services:
       - "3000:3000"
     networks:
       - capsula_net
-    # For development, mount the code
     volumes:
-      - ./orchestrator:/app
-      - /app/node_modules # Anonymous volume to prevent host override
+      # Optional: In strict production we don't mount code. 
+      # But for "Deployment" on user machine, maybe they check logs or config?
+      # Let's remove code mount for "Deployment" feel (immutable container).
+      # But mount .env? No, env_file handles it.
+      # Mount 'data' for settings.json persistence?
+      - ./orchestrator/data:/app/data
+      # Logs?
+      - ./orchestrator/logs:/app/logs
+
+  # Frontend: Web (Nginx)
+  web:
+    build: ./web
+    container_name: capsula_web
+    ports:
+      - "5173:80"
+    depends_on:
+      - orchestrator
+    networks:
+      - capsula_net
 
 networks:
   capsula_net:
