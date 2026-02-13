@@ -201,7 +201,7 @@ IMPORTANT RULES:
           conversationId,
           role: 'assistant',
           content: answer,
-          sources: null
+          sources: undefined
         }
       ]
     });
