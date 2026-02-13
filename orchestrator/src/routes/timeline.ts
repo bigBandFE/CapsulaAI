@@ -143,7 +143,7 @@ router.get('/heatmap', async (req: Request, res: Response) => {
     });
 
     // Generate full year data (365/366 days)
-    const data = [];
+    const data: Array<{ date: string; count: number }> = [];
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
       const dateKey = currentDate.toISOString().split('T')[0];

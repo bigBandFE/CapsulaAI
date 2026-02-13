@@ -40,7 +40,7 @@ router.post('/url', async (req, res) => {
 
   } catch (error) {
     console.error('[Ingest] Error processing URL:', error);
-    res.status(500).json({ error: 'Failed to ingest URL', details: error.message });
+    res.status(500).json({ error: 'Failed to ingest URL', details: (error as Error).message });
   }
 });
 
