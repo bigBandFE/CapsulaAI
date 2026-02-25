@@ -17,26 +17,26 @@ The system follows a modular microservices-like architecture, orchestrated via D
 
 ```mermaid
 graph TD
-    User[User (Web/Mobile)] <--> Nginx[Nginx / Web Container]
-    Nginx <--> Frontend[React SPA (Port 5173)]
-    Frontend <--> API[Orchestrator API (Port 3000)]
+    User["User (Web/Mobile)"] <--> Nginx["Nginx / Web Container"]
+    Nginx <--> Frontend["React SPA (Port 5173)"]
+    Frontend <--> API["Orchestrator API (Port 3000)"]
     
     subgraph "Data Layer"
-        API <--> DB[(Postgres + pgvector)]
-        API <--> MinIO[(MinIO Object Storage)]
+        API <--> DB[("Postgres + pgvector")]
+        API <--> MinIO[("MinIO Object Storage")]
     end
 
     subgraph "AI Processing"
-        API --> Queue[BullMQ (Redis-based, internal)]
-        Queue --> Worker[Worker Process]
-        Worker --> VLM[Vision Model (Moonshot/Kimi)]
-        Worker --> LLM[Text Model (MiniMax)]
-        Worker --> Embed[Embedding Model]
+        API --> Queue["BullMQ (Redis-based, internal)"]
+        Queue --> Worker["Worker Process"]
+        Worker --> VLM["Vision Model (Moonshot/Kimi)"]
+        Worker --> LLM["Text Model (MiniMax)"]
+        Worker --> Embed["Embedding Model"]
     end
     
     subgraph "External World"
-        Worker --> Crawler[Puppeteer Headless Browser]
-        Crawler --> Websites[Target URLs]
+        Worker --> Crawler["Puppeteer Headless Browser"]
+        Crawler --> Websites["Target URLs"]
     end
 ```
 
