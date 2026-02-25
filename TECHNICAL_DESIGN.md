@@ -62,49 +62,73 @@ graph TD
 
 ---
 
-## 3. Data Model
+## 3. Data Model (Memory Engine V1)
 
 ### 3.1 Core Entities
 
 #### Capsule
-The fundamental unit of memory.
+The fundamental event/trigger unit of memory. It captures data from the outside world.
 - `id`: UUID
-- `content`: Raw text or OCR result.
-- `type`: `NOTE`, `IMAGE`, `LINK`.
-- `embedding`: Vector(1536) for semantic search.
+- `rawContent`: Raw text or OCR result.
+- `summary`: Short summary of the capsule.
+- `sourceTypes`: Array of strings (e.g., `["IMAGE", "WEBSITE"]`).
 - `status`: `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`.
 
-#### Entity & Relation (Knowledge Graph)
-Extracted knowledge points.
-- **Entity**: `Person`, `Organization`, `Location`, `Event`, `Concept`.
-- **Relation**: Directed edge between entities (e.g., `WORKS_AT`, `LOCATED_IN`, `CREATED`).
+#### Entity (The Skeleton)
+The stable nodes of the Knowledge Graph extracted from Capsules.
+- `id`: UUID
+- `type`: `PERSON`, `ORG`, `LOCATION`, `EVENT`, `TOPIC`, `DOCUMENT`, etc.
+- `canonicalName`: Display name of the entity.
+- `normalizedName`: Lowercase name for deduplication.
+- `mentionCount`: How many times this entity has been mentioned across capsules.
 
-#### Activity & Timeline
-- Logs interactions and updates for "Self-Improving Memory".
-- Heatmap generation based on creation/access timestamps.
+#### Relation (The Structure)
+Directed edges connecting two Entities.
+- `id`: UUID
+- `fromEntityId` & `toEntityId`: Links to Entity nodes.
+- `relationType`: The type of relationship (e.g., `WORKS_AT`, `LOCATED_IN`, `FOUNDER_OF`).
+- `strength`: Confidence score.
+- `mentionCount`: Number of times this relation was observed.
+
+#### Intermediate Linkers & Vectors
+- **`CapsuleEntity` & `CapsuleRelation`**: Linkers that track exactly which Capsule generated which Entity or Relation, allowing for full traceability and timeline views.
+- **`Embedding`**: Polymorphic vector storage that links to either a `Capsule` or an `Entity` for semantic search.
 
 ### 3.2 Schema Visualization
 ```mermaid
 erDiagram
     Capsule ||--o{ Asset : contains
-    Capsule ||--o{ Entity : mentions
+    Capsule ||--o{ CapsuleEntity : has
+    Entity ||--o{ CapsuleEntity : mentioned_in
+    Capsule ||--o{ CapsuleRelation : has
+    Relation ||--o{ CapsuleRelation : extracted_from
     Entity ||--o{ Relation : source
     Entity ||--o{ Relation : target
+    Capsule ||--o{ Embedding : represented_by
+    Entity ||--o{ Embedding : represented_by
+
     Capsule {
         string id PK
-        string content
-        vector embedding
-        enum status
+        string rawContent
+        string[] sourceTypes
+        string status
     }
     Entity {
         string id PK
-        string name
+        string canonicalName
         string type
-        json metadata
+        int mentionCount
     }
     Relation {
         string id PK
-        string type
+        string relationType
+        int mentionCount
+    }
+    Embedding {
+        string id PK
+        string objectType
+        string objectId
+        vector vector
     }
 ```
 

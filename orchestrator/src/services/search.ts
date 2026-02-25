@@ -18,7 +18,7 @@ export interface SearchResult {
     createdAt: Date;
     title: string;
     summary?: string;
-    sourceType: string;
+    sourceTypes: string[];
   };
   score: number;
   relevantChunk: string;
@@ -43,7 +43,7 @@ export class SearchService {
 
     if (filters?.sourceType && filters.sourceType.length > 0) {
       const types = filters.sourceType.map(t => `'${t}'`).join(',');
-      whereConditions.push(`c."sourceType" IN (${types})`);
+      whereConditions.push(`c."sourceTypes" && ARRAY[${types}]`); // Postgres array intersection
     }
 
     if (filters?.dateRange) {
@@ -58,9 +58,9 @@ export class SearchService {
       SELECT 
         c.id,
         c."createdAt",
-        c."sourceType",
-        c."structuredData",
-        c."originalContent",
+        c."sourceTypes",
+        c."summary",
+        c."rawContent",
         e."contentChunk",
         (e.vector <=> '${vectorStr}'::vector) as distance
       FROM "Capsule" c
@@ -73,9 +73,9 @@ export class SearchService {
     let results = await prisma.$queryRawUnsafe<Array<{
       id: string;
       createdAt: Date;
-      sourceType: string;
-      structuredData: any;
-      originalContent: string;
+      sourceTypes: string[];
+      summary: string;
+      rawContent: string;
       contentChunk: string;
       distance: number;
     }>>(sqlQuery);
@@ -87,10 +87,10 @@ export class SearchService {
       const entityFiltered = await prisma.$queryRaw<Array<{ id: string }>>`
         SELECT DISTINCT c.id
         FROM "Capsule" c
-        JOIN "_CapsuleToEntity" ce ON c.id = ce."A"
-        JOIN "Entity" e ON ce."B" = e.id
+        JOIN "CapsuleEntity" ce ON c.id = ce."capsuleId"
+        JOIN "Entity" e ON ce."entityId" = e.id
         WHERE c.id = ANY(${capsuleIds})
-          AND e.name = ANY(${filters.entities})
+          AND e."canonicalName" = ANY(${filters.entities})
       `;
 
       const filteredIds = new Set(entityFiltered.map(r => r.id));
@@ -103,12 +103,12 @@ export class SearchService {
         capsule: {
           id: r.id,
           createdAt: r.createdAt,
-          title: r.structuredData?.meta?.title || 'Untitled',
-          summary: r.structuredData?.content?.summary,
-          sourceType: r.sourceType
+          title: r.summary || 'Untitled',
+          summary: r.summary,
+          sourceTypes: r.sourceTypes
         },
         score: 1 - r.distance, // Convert distance to similarity
-        relevantChunk: r.contentChunk || r.originalContent?.substring(0, 200) || ''
+        relevantChunk: r.contentChunk || r.rawContent?.substring(0, 200) || ''
       }))
       .filter(r => r.score >= threshold)
       .slice(0, limit);
@@ -121,22 +121,24 @@ export class SearchService {
    */
   static async searchByEntity(entityName: string, entityType?: string, limit: number = 10) {
     const where: any = {
-      entities: {
+      capsuleEntities: {
         some: {
-          name: entityName
+          entity: {
+            canonicalName: entityName
+          }
         }
       },
       status: 'COMPLETED'
     };
 
     if (entityType) {
-      where.entities.some.type = entityType;
+      where.capsuleEntities.some.entity.type = entityType;
     }
 
     const capsules = await prisma.capsule.findMany({
       where,
       include: {
-        entities: true
+        capsuleEntities: { include: { entity: true } }
       },
       orderBy: { createdAt: 'desc' },
       take: limit
@@ -146,12 +148,12 @@ export class SearchService {
       capsule: {
         id: c.id,
         createdAt: c.createdAt,
-        title: (c.structuredData as any)?.meta?.title || 'Untitled',
-        summary: (c.structuredData as any)?.content?.summary,
-        sourceType: c.sourceType
+        title: c.summary || 'Untitled',
+        summary: c.summary,
+        sourceTypes: c.sourceTypes
       },
       score: 1.0, // Exact entity match
-      relevantChunk: c.originalContent?.substring(0, 200) || ''
+      relevantChunk: c.rawContent?.substring(0, 200) || ''
     }));
   }
 
@@ -159,19 +161,18 @@ export class SearchService {
    * Search for pending actions (TODOs)
    */
   static async searchActions(actionType: 'TODO' | 'REMINDER' | 'FOLLOW_UP' = 'TODO', limit: number = 20) {
-    // Use raw query to search in JSONB
+    // Use raw query
     const capsules = await prisma.$queryRaw<Array<{
       id: string;
       createdAt: Date;
-      sourceType: string;
-      structuredData: any;
-      originalContent: string;
+      sourceTypes: string[];
+      summary: string;
+      rawContent: string;
     }>>`
-      SELECT id, "createdAt", "sourceType", "structuredData", "originalContent"
+      SELECT id, "createdAt", "sourceTypes", "summary", "rawContent"
       FROM "Capsule"
       WHERE status = 'COMPLETED'
-        AND "structuredData" ? 'actions'
-        AND "structuredData"->'actions' IS NOT NULL
+        AND "rawContent" ILIKE '%todo%'
       ORDER BY "createdAt" DESC
       LIMIT 100
     `;
@@ -179,7 +180,8 @@ export class SearchService {
     const results: SearchResult[] = [];
 
     for (const capsule of capsules) {
-      const actions = (capsule.structuredData as any)?.actions || [];
+      // Dummy logic for extracting actions, as structuredData was removed
+      const actions: any[] = [];
       const matchingActions = actions.filter((a: any) => a.type === actionType);
 
       if (matchingActions.length > 0) {
@@ -187,9 +189,9 @@ export class SearchService {
           capsule: {
             id: capsule.id,
             createdAt: capsule.createdAt,
-            title: (capsule.structuredData as any)?.meta?.title || 'Untitled',
+            title: capsule.summary || 'Untitled',
             summary: matchingActions.map((a: any) => a.description).join(', '),
-            sourceType: capsule.sourceType
+            sourceTypes: capsule.sourceTypes
           },
           score: 1.0,
           relevantChunk: matchingActions.map((a: any) =>

@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { RelationshipService } from '../services/relationship';
-import { RelationshipType } from '@prisma/client';
 
 const router = Router();
 

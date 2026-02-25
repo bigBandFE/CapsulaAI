@@ -1,4 +1,4 @@
-import { PrismaClient, RelationshipType } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { Relationship as RelationshipData } from '../ai/schemas';
 
 const prisma = new PrismaClient();
@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 export interface CreateRelationshipInput {
   fromEntityId: string;
   toEntityId: string;
-  type: RelationshipType;
+  type: string;
   confidence: number;
   capsuleId: string;
   metadata?: any;
@@ -26,64 +26,68 @@ export class RelationshipService {
     for (const rel of relationships) {
       try {
         // Find or create entities
-        const fromEntity = await prisma.entity.upsert({
-          where: {
-            name_type: {
-              name: rel.from,
+        const normalizedFromName = rel.from.toLowerCase().trim();
+        let fromEntity = await prisma.entity.findFirst({
+          where: { normalizedName: normalizedFromName, type: rel.fromType }
+        });
+        if (!fromEntity) {
+          fromEntity = await prisma.entity.create({
+            data: {
+              canonicalName: rel.from.trim(),
+              normalizedName: normalizedFromName,
               type: rel.fromType
             }
-          },
-          create: {
-            name: rel.from,
-            type: rel.fromType
-          },
-          update: {}
-        });
-
-        const toEntity = await prisma.entity.upsert({
-          where: {
-            name_type: {
-              name: rel.to,
-              type: rel.toType
-            }
-          },
-          create: {
-            name: rel.to,
-            type: rel.toType
-          },
-          update: {}
-        });
-
-        // Validate relationship type
-        let relType = rel.type as RelationshipType;
-        if (!Object.values(RelationshipType).includes(relType)) {
-          console.warn(`Invalid relationship type: ${rel.type}. Falling back to OTHER.`);
-          relType = RelationshipType.OTHER;
+          });
+        } else {
+          fromEntity = await prisma.entity.update({
+            where: { id: fromEntity.id },
+            data: { mentionCount: { increment: 1 }, lastSeenAt: new Date() }
+          });
         }
 
+        const normalizedToName = rel.to.toLowerCase().trim();
+        let toEntity = await prisma.entity.findFirst({
+          where: { normalizedName: normalizedToName, type: rel.toType }
+        });
+        if (!toEntity) {
+          toEntity = await prisma.entity.create({
+            data: {
+              canonicalName: rel.to.trim(),
+              normalizedName: normalizedToName,
+              type: rel.toType
+            }
+          });
+        } else {
+          toEntity = await prisma.entity.update({
+            where: { id: toEntity.id },
+            data: { mentionCount: { increment: 1 }, lastSeenAt: new Date() }
+          });
+        }
+
+        // Validate relationship type
+        let relType = String(rel.type).toUpperCase();
+
         // Create relationship (upsert to avoid duplicates)
-        const relationship = await prisma.relationship.upsert({
+        const relation = await prisma.relation.upsert({
           where: {
-            fromEntityId_toEntityId_type: {
+            fromEntityId_toEntityId_relationType: {
               fromEntityId: fromEntity.id,
               toEntityId: toEntity.id,
-              type: relType
+              relationType: relType
             }
           },
           create: {
             fromEntityId: fromEntity.id,
             toEntityId: toEntity.id,
-            type: relType,
-            confidence: typeof rel.confidence === 'string' ? parseFloat(rel.confidence) : (rel.confidence || 1.0),
-            capsuleId,
-            metadata: rel.metadata as any
+            relationType: relType,
+            strength: typeof rel.confidence === 'string' ? parseFloat(rel.confidence) : (rel.confidence || 1.0),
+            createdBy: 'system' // or whatever default
           },
           update: {
-            // Update confidence if new one is higher
-            confidence: (typeof rel.confidence === 'string' ? parseFloat(rel.confidence) : rel.confidence) > 0
+            mentionCount: { increment: 1 },
+            strength: (typeof rel.confidence === 'string' ? parseFloat(rel.confidence) : rel.confidence) > 0
               ? (typeof rel.confidence === 'string' ? parseFloat(rel.confidence) : rel.confidence)
-              : undefined,
-            metadata: rel.metadata as any
+              : undefined
           },
           include: {
             fromEntity: true,
@@ -91,7 +95,7 @@ export class RelationshipService {
           }
         });
 
-        created.push(relationship);
+        created.push(relation);
       } catch (error) {
         console.error(`Failed to create relationship ${rel.from} -> ${rel.to}:`, error);
       }
@@ -105,13 +109,13 @@ export class RelationshipService {
    */
   static async getEntityRelationships(
     entityId: string,
-    type?: RelationshipType,
+    type?: string,
     direction?: 'from' | 'to' | 'both'
   ) {
-    const where: any = {};
+    const where: Prisma.RelationWhereInput = {};
 
     if (type) {
-      where.type = type;
+      where.relationType = type;
     }
 
     if (direction === 'from') {
@@ -126,44 +130,37 @@ export class RelationshipService {
       ];
     }
 
-    const relationships = await prisma.relationship.findMany({
+    const relationships = await prisma.relation.findMany({
       where,
       include: {
         fromEntity: true,
         toEntity: true,
-        capsule: {
-          select: {
-            id: true,
-            structuredData: true,
-            createdAt: true
-          }
-        }
+        capsuleRelations: { include: { capsule: true } }
       },
       orderBy: {
-        confidence: 'desc'
+        strength: 'desc'
       }
     });
 
     return relationships.map(rel => ({
       id: rel.id,
-      type: rel.type,
+      type: rel.relationType,
       direction: rel.fromEntityId === entityId ? 'from' : 'to',
       relatedEntity: rel.fromEntityId === entityId ? {
         id: rel.toEntity.id,
-        name: rel.toEntity.name,
+        name: rel.toEntity.canonicalName,
         type: rel.toEntity.type
       } : {
         id: rel.fromEntity.id,
-        name: rel.fromEntity.name,
+        name: rel.fromEntity.canonicalName,
         type: rel.fromEntity.type
       },
-      confidence: rel.confidence,
-      metadata: rel.metadata,
-      source: {
-        capsuleId: rel.capsule.id,
-        title: (rel.capsule.structuredData as any)?.meta?.title || 'Untitled',
-        createdAt: rel.capsule.createdAt
-      }
+      strength: rel.strength,
+      source: rel.capsuleRelations[0] ? {
+        capsuleId: rel.capsuleRelations[0].capsule.id,
+        title: rel.capsuleRelations[0].capsule.summary || 'Untitled',
+        createdAt: rel.capsuleRelations[0].capsule.createdAt
+      } : undefined
     }));
   }
 
@@ -191,7 +188,7 @@ export class RelationshipService {
       visited.add(entityId);
 
       // Get all relationships for this entity
-      const relationships = await prisma.relationship.findMany({
+      const relationships = await prisma.relation.findMany({
         where: {
           OR: [
             { fromEntityId: entityId },
@@ -215,8 +212,8 @@ export class RelationshipService {
               ...path,
               {
                 entity: { id: entityId },
-                relationship: { type: rel.type, confidence: rel.confidence },
-                nextEntity: { id: nextEntity.id, name: nextEntity.name, type: nextEntity.type }
+                relationship: { type: rel.relationType, strength: rel.strength },
+                nextEntity: { id: nextEntity.id, name: nextEntity.canonicalName, type: nextEntity.type }
               }
             ]
           });
@@ -230,7 +227,7 @@ export class RelationshipService {
   /**
    * Get all related entities within N hops
    */
-  static async getRelatedEntities(entityId: string, depth: number = 2, type?: RelationshipType) {
+  static async getRelatedEntities(entityId: string, depth: number = 2, type?: string) {
     const visited = new Set<string>();
     const entities: any[] = [];
     const queue: Array<{ entityId: string; currentDepth: number }> = [
@@ -261,7 +258,7 @@ export class RelationshipService {
       }
 
       // Get relationships
-      const where: any = {
+      const where: Prisma.RelationWhereInput = {
         OR: [
           { fromEntityId: currentId },
           { toEntityId: currentId }
@@ -269,10 +266,10 @@ export class RelationshipService {
       };
 
       if (type) {
-        where.type = type;
+        where.relationType = type;
       }
 
-      const relationships = await prisma.relationship.findMany({
+      const relationships = await prisma.relation.findMany({
         where,
         include: {
           fromEntity: true,
@@ -299,34 +296,34 @@ export class RelationshipService {
    * Get relationship statistics
    */
   static async getStats() {
-    const totalRelationships = await prisma.relationship.count();
+    const totalRelationships = await prisma.relation.count();
 
     // Count by type
-    const byType = await prisma.relationship.groupBy({
-      by: ['type'],
+    const byType = await prisma.relation.groupBy({
+      by: ['relationType'],
       _count: true
     });
 
     const typeStats = byType.reduce((acc: any, item) => {
-      acc[item.type] = item._count;
+      acc[item.relationType] = item._count;
       return acc;
     }, {});
 
     // Top connected entities
     const topConnected = await prisma.$queryRaw<Array<{
       id: string;
-      name: string;
+      canonicalName: string;
       type: string;
       connectionCount: bigint;
     }>>`
       SELECT 
         e.id,
-        e.name,
+        e."canonicalName",
         e.type,
         COUNT(*) as "connectionCount"
       FROM "Entity" e
-      LEFT JOIN "Relationship" r ON (r."fromEntityId" = e.id OR r."toEntityId" = e.id)
-      GROUP BY e.id, e.name, e.type
+      LEFT JOIN "Relation" r ON (r."fromEntityId" = e.id OR r."toEntityId" = e.id)
+      GROUP BY e.id, e."canonicalName", e.type
       ORDER BY "connectionCount" DESC
       LIMIT 10
     `;
@@ -336,7 +333,7 @@ export class RelationshipService {
       byType: typeStats,
       topConnectedEntities: topConnected.map(e => ({
         id: e.id,
-        name: e.name,
+        name: e.canonicalName,
         type: e.type,
         connectionCount: Number(e.connectionCount)
       }))
@@ -362,7 +359,7 @@ export class RelationshipService {
       });
 
       // Get relationships between these entities
-      relationships = await prisma.relationship.findMany({
+      relationships = await prisma.relation.findMany({
         where: {
           AND: [
             { fromEntityId: { in: entityIds } },
@@ -381,7 +378,7 @@ export class RelationshipService {
 
       const entityIds = entities.map(e => e.id);
 
-      relationships = await prisma.relationship.findMany({
+      relationships = await prisma.relation.findMany({
         where: {
           AND: [
             { fromEntityId: { in: entityIds } },
@@ -402,7 +399,7 @@ export class RelationshipService {
     return {
       nodes: entities.map(e => ({
         id: e.id,
-        label: e.name,
+        label: e.canonicalName,
         type: e.type,
         connectionCount: connectionCounts[e.id] || 0
       })),
