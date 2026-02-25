@@ -59,9 +59,10 @@ Search across your entire life with natural language:
 
 ### 👁 Multi-Modal Understanding
 
-* **OCR** for screenshots and documents.
-* **Visual Extraction** for identity and document awareness.
-* **Entity Linking** to connect people, places, and concepts.
+* **Parallel OCR** for multiple screenshots and PDFs simultaneously.
+* **Implicit Web Crawling** to seamlessly extract content from URLs pasted into notes.
+* **Visual Extraction** for precise document layout and context awareness.
+* **Entity Graph Linking** to explicitly connect extracted people, places, and events into an interactive network.
 
 ### 🧠 Hybrid Intelligence
 
@@ -102,9 +103,9 @@ Capsule Engine  Vector Database  Local LLM
 
 # 🧭 Roadmap
 
-* **Phase 1 — Memory Foundation:** Capsule creation, local processing, and private semantic search.
-* **Phase 2 — Intelligence Layer:** Entity systems (Person/Org/Doc) and action extraction.
-* **Phase 3 — Knowledge Evolution:** Graph visualization and self-improving memory.
+* **Phase 1 — Memory Foundation (Completed)**: Unified Multi-Modal Capsules (Rich Text + Images + URLs), VLM pipelines, and local processing.
+* **Phase 2 — Intelligence Layer (Completed)**: Explicit Knowledge Graph (Entities & Relations), Timeline views, and Semantic Search.
+* **Phase 3 — Knowledge Evolution (In Progress)**: Spaced repetition, Self-improving graph maintenance, and dynamic actionable insights.
 
 ---
 

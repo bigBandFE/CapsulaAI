@@ -29,7 +29,7 @@ router.get('/', async (req: Request, res: Response) => {
         status: 'COMPLETED'
       },
       include: {
-        entities: true,
+        capsuleEntities: { include: { entity: true } },
         assets: true
       },
       orderBy: { createdAt: 'desc' }
@@ -39,7 +39,8 @@ router.get('/', async (req: Request, res: Response) => {
     const stats = {
       totalCapsules: capsules.length,
       bySourceType: capsules.reduce((acc: any, c) => {
-        acc[c.sourceType] = (acc[c.sourceType] || 0) + 1;
+        const type = c.sourceTypes[0] || 'NOTE';
+        acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {}),
       topEntities: await getTopEntities(startDate, endDate)
@@ -52,13 +53,13 @@ router.get('/', async (req: Request, res: Response) => {
         type: 'custom'
       },
       stats,
-      capsules: capsules.map(c => ({
+      capsules: capsules.map((c: any) => ({
         id: c.id,
         createdAt: c.createdAt,
-        sourceType: c.sourceType,
-        title: (c.structuredData as any)?.meta?.title || 'Untitled',
-        summary: (c.structuredData as any)?.content?.summary,
-        entities: c.entities.map(e => ({ name: e.name, type: e.type }))
+        sourceTypes: c.sourceTypes,
+        title: c.summary || 'Untitled',
+        summary: c.summary,
+        entities: c.capsuleEntities.map((ce: any) => ({ name: ce.entity.canonicalName, type: ce.entity.type }))
       }))
     });
   } catch (error) {
@@ -90,7 +91,7 @@ router.get('/daily', async (req: Request, res: Response) => {
         },
         status: 'COMPLETED'
       },
-      include: { entities: true },
+      include: { capsuleEntities: { include: { entity: true } } },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -100,8 +101,8 @@ router.get('/daily', async (req: Request, res: Response) => {
       capsules: capsules.map(c => ({
         id: c.id,
         createdAt: c.createdAt,
-        title: (c.structuredData as any)?.meta?.title || 'Untitled',
-        entities: c.entities.map(e => ({ name: e.name, type: e.type }))
+        title: c.summary || 'Untitled',
+        entities: c.capsuleEntities.map((ce: any) => ({ name: ce.entity.canonicalName, type: ce.entity.type }))
       }))
     });
   } catch (error) {
@@ -180,12 +181,13 @@ router.get('/heatmap', async (req: Request, res: Response) => {
  */
 async function getTopEntities(start: Date, end: Date, limit: number = 10) {
   const result = await prisma.$queryRaw<Array<{ name: string; type: string; count: bigint }>>`
-    SELECT e.name, e.type, COUNT(DISTINCT c.id) as count
+    SELECT e."canonicalName" as name, e.type, COUNT(DISTINCT c.id) as count
     FROM "Entity" e
-    JOIN "_CapsuleToEntity" ce ON e.id = ce."B"
-    JOIN "Capsule" c ON ce."A" = c.id
+    JOIN "CapsuleEntity" ce ON e.id = ce."entityId"
+    JOIN "Capsule" c ON ce."capsuleId" = c.id
     WHERE c."createdAt" >= ${start} AND c."createdAt" <= ${end}
-    GROUP BY e.name, e.type
+    GROUP BY e."canonicalName", e.type
+
     ORDER BY count DESC
     LIMIT ${limit}
   `;

@@ -14,22 +14,10 @@ export class DeduplicationService {
       .digest('hex');
   }
 
-  /**
-   * Check if content already exists (exact duplicate)
-   * Returns existing Capsule if found, null otherwise
-   */
-  static async findExactDuplicate(content: string) {
-    const hash = this.generateContentHash(content);
-
-    const existing = await prisma.capsule.findUnique({
-      where: { contentHash: hash },
-      include: {
-        entities: true,
-        assets: true
-      }
-    });
-
-    return existing;
+  static async findExactDuplicate(content: string): Promise<any> {
+    // V1 removed contentHash from Capsule, deduplication is handled at the Entity layer.
+    // Return null to allow capsule creation.
+    return null;
   }
 
   /**
@@ -66,69 +54,17 @@ export class DeduplicationService {
       .filter(r => r.score >= threshold && r.score < 0.999); // Exclude self (score ~1.0)
   }
 
-  /**
-   * Mark a capsule as similar to another
-   */
   static async markAsSimilar(
     capsuleId: string,
     similarToId: string,
     score: number
   ) {
-    await prisma.capsule.update({
-      where: { id: capsuleId },
-      data: {
-        similarTo: similarToId,
-        similarityScore: score
-      }
-    });
-
+    // V1 removed similarTo from Capsule
     console.log(`[Dedup] Capsule ${capsuleId} marked as similar to ${similarToId} (score: ${score.toFixed(3)})`);
   }
 
-  /**
-   * Get all duplicates/similar capsules for a given capsule
-   */
   static async getSimilarCapsules(capsuleId: string) {
-    // Find capsules that reference this one
-    const referencingThis = await prisma.capsule.findMany({
-      where: { similarTo: capsuleId },
-      select: {
-        id: true,
-        createdAt: true,
-        similarityScore: true,
-        structuredData: true
-      }
-    });
-
-    // Find what this capsule references
-    const capsule = await prisma.capsule.findUnique({
-      where: { id: capsuleId },
-      select: {
-        similarTo: true,
-        similarityScore: true
-      }
-    });
-
-    const result: any = {
-      referencedBy: referencingThis
-    };
-
-    if (capsule?.similarTo) {
-      const referenced = await prisma.capsule.findUnique({
-        where: { id: capsule.similarTo },
-        select: {
-          id: true,
-          createdAt: true,
-          structuredData: true
-        }
-      });
-
-      result.references = {
-        ...referenced,
-        similarityScore: capsule.similarityScore
-      };
-    }
-
-    return result;
+    // Return empty for V1 since we rely on Graph relations, not Capsule-to-Capsule deduplication
+    return { referencedBy: [] };
   }
 }

@@ -53,19 +53,7 @@ export class FeedbackService {
       }
     });
 
-    // Update capsule feedback count
-    await prisma.capsule.update({
-      where: { id: submission.capsuleId },
-      data: {
-        feedbackCount: {
-          increment: 1
-        }
-      }
-    });
-
-    // Recalculate quality score
-    await this.updateQualityScore(submission.capsuleId);
-
+    // Feedback metrics are now computed dynamically due to Capsule Schema update.
     return feedback;
   }
 
@@ -78,13 +66,8 @@ export class FeedbackService {
       orderBy: { createdAt: 'desc' }
     });
 
-    const capsule = await prisma.capsule.findUnique({
-      where: { id: capsuleId },
-      select: {
-        feedbackCount: true,
-        qualityScore: true
-      }
-    });
+    // Calculate quality score dynamically since it was removed from Capsule
+    const metrics = this.calculateQualityMetrics(feedback);
 
     // Calculate average rating
     const ratings = feedback.filter(f => f.type === 'RATING' && f.rating).map(f => f.rating!);
@@ -94,9 +77,9 @@ export class FeedbackService {
 
     return {
       capsuleId,
-      feedbackCount: capsule?.feedbackCount || 0,
+      feedbackCount: feedback.length,
       averageRating,
-      qualityScore: capsule?.qualityScore || 0,
+      qualityScore: metrics.qualityScore,
       feedback
     };
   }
@@ -114,14 +97,6 @@ export class FeedbackService {
     }
 
     const metrics = this.calculateQualityMetrics(feedback);
-
-    await prisma.capsule.update({
-      where: { id: capsuleId },
-      data: {
-        qualityScore: metrics.qualityScore
-      }
-    });
-
     return metrics;
   }
 
@@ -203,11 +178,10 @@ export class FeedbackService {
     const capsules = await prisma.capsule.findMany({
       where: {
         createdAt: { gte: thirtyDaysAgo },
-        feedbackCount: { gt: 0 }
+        feedback: { some: {} }
       },
-      select: {
-        createdAt: true,
-        qualityScore: true
+      include: {
+        feedback: true
       }
     });
 
@@ -217,7 +191,8 @@ export class FeedbackService {
       if (!qualityByDay[date]) {
         qualityByDay[date] = { total: 0, count: 0 };
       }
-      qualityByDay[date].total += c.qualityScore || 0;
+      const score = this.calculateQualityMetrics(c.feedback).qualityScore;
+      qualityByDay[date].total += score;
       qualityByDay[date].count += 1;
     });
 
@@ -241,28 +216,38 @@ export class FeedbackService {
    * Get low quality capsules
    */
   static async getLowQualityCapsules(threshold: number = 50, limit: number = 20) {
-    const capsules = await prisma.capsule.findMany({
+    const allWithFeedback = await prisma.capsule.findMany({
       where: {
-        feedbackCount: { gt: 0 },
-        qualityScore: { lt: threshold }
+        feedback: { some: {} }
       },
       include: {
         feedback: {
-          orderBy: { createdAt: 'desc' },
-          take: 3
+          orderBy: { createdAt: 'desc' }
         }
-      },
-      orderBy: { qualityScore: 'asc' },
-      take: limit
+      }
     });
+
+    const capsules = allWithFeedback
+      .map(c => {
+        const metrics = this.calculateQualityMetrics(c.feedback);
+        return {
+          ...c,
+          qualityScore: metrics.qualityScore,
+          feedbackCount: c.feedback.length,
+          recentFeedback: c.feedback.slice(0, 3)
+        };
+      })
+      .filter(c => c.qualityScore < threshold)
+      .sort((a, b) => a.qualityScore - b.qualityScore)
+      .slice(0, limit);
 
     return capsules.map(c => ({
       id: c.id,
-      title: (c.structuredData as any)?.meta?.title || 'Untitled',
-      sourceType: c.sourceType,
+      title: c.summary || 'Untitled',
+      sourceTypes: c.sourceTypes,
       qualityScore: c.qualityScore,
       feedbackCount: c.feedbackCount,
-      recentFeedback: c.feedback
+      recentFeedback: c.recentFeedback
     }));
   }
 

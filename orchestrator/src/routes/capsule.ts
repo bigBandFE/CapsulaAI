@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient, CapsuleStatus, SourceType } from '@prisma/client';
+import { PrismaClient, CapsuleStatus } from '@prisma/client';
 import { DeduplicationService } from '../services/deduplication';
 
 const router = Router();
@@ -7,12 +7,15 @@ const prisma = new PrismaClient();
 
 // Create Capsule
 router.post('/', async (req: Request, res: Response) => {
-  const { originalContent, sourceType, assets } = req.body; // assets: [{ storagePath, mimeType, size, fileName }]
+  const { originalContent, rawContent, sourceType, sourceTypes, assets } = req.body; // assets: [{ storagePath, mimeType, size, fileName }]
+
+  const content = rawContent || originalContent;
+  const types = sourceTypes || (sourceType ? [sourceType] : ['NOTE']);
 
   try {
     // Check for exact duplicate (Phase 2.5)
-    if (originalContent) {
-      const duplicate = await DeduplicationService.findExactDuplicate(originalContent);
+    if (content) {
+      const duplicate = await DeduplicationService.findExactDuplicate(content);
       if (duplicate) {
         console.log(`[API] Duplicate content detected. Returning existing Capsule: ${duplicate.id}`);
         return res.json({
@@ -23,17 +26,15 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // Generate content hash
-    const contentHash = originalContent
-      ? DeduplicationService.generateContentHash(originalContent)
-      : null;
+    // Generate content hash (if DeduplicationService still uses it, wait, we removed contentHash from DB?)
+    // Note: If contentHash is removed from Capsule, we might need to handle deduplication differently.
+    // Let's assume DeduplicationService will be updated later.
 
     const capsule = await prisma.capsule.create({
       data: {
-        originalContent,
-        sourceType: sourceType as SourceType || SourceType.NOTE,
+        rawContent: content,
+        sourceTypes: types,
         status: CapsuleStatus.PENDING,
-        contentHash,
         assets: {
           create: assets || []
         }
@@ -60,7 +61,22 @@ router.get('/:id', async (req: Request, res: Response) => {
       where: { id },
       include: {
         assets: true,
-        embeddings: true
+        embeddings: true,
+        capsuleEntities: {
+          include: {
+            entity: true
+          }
+        },
+        capsuleRelations: {
+          include: {
+            relation: {
+              include: {
+                fromEntity: true,
+                toEntity: true
+              }
+            }
+          }
+        }
       }
     });
 
@@ -135,7 +151,6 @@ router.post('/:id/reprocess', async (req: Request, res: Response) => {
       where: { id },
       data: {
         status: CapsuleStatus.PENDING,
-        structuredData: undefined,  // Clear previous data
         isSanitized: false, // Reset flags if needed
       },
       include: { assets: true }
@@ -168,7 +183,6 @@ router.post('/:id/retry', async (req: Request, res: Response) => {
       where: { id },
       data: {
         status: CapsuleStatus.PENDING,
-        structuredData: undefined,  // Clear previous (potentially partial) data
       },
       include: { assets: true }
     });

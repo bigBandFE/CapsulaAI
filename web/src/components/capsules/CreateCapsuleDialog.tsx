@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Loader2, Upload, Globe, FileText, Image as ImageIcon, X, File } from "lucide-react";
+import { Plus, Loader2, Upload, FileText, Image as ImageIcon, X, File as FileIcon } from "lucide-react";
 import { capsuleService } from "@/services/capsule";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,82 +20,67 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
-// Schema for text note
-const noteSchema = z.object({
-  originalContent: z.string().min(1, "Content is required"),
-});
-
-// Schema for URL
-const urlSchema = z.object({
-  url: z.string().url("Please enter a valid URL"),
-  tags: z.string().optional(),
+// Unified Schema for Multi-Modal Note
+const capsuleSchema = z.object({
+  originalContent: z.string().optional(),
 });
 
 export function CreateCapsuleDialog() {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("note");
   const [dragActive, setDragActive] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const queryClient = useQueryClient();
 
-  const noteForm = useForm<z.infer<typeof noteSchema>>({
-    resolver: zodResolver(noteSchema),
+  const form = useForm<z.infer<typeof capsuleSchema>>({
+    resolver: zodResolver(capsuleSchema),
     defaultValues: { originalContent: "" },
   });
 
-  const urlForm = useForm<z.infer<typeof urlSchema>>({
-    resolver: zodResolver(urlSchema),
-    defaultValues: { url: "", tags: "" },
-  });
+  // Unified creation mutation
+  const createMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof capsuleSchema>) => {
+      const content = values.originalContent?.trim();
+      const hasFiles = selectedFiles.length > 0;
 
-  // Note creation
-  const noteMutation = useMutation({
-    mutationFn: (values: z.infer<typeof noteSchema>) =>
-      capsuleService.create({ originalContent: values.originalContent, sourceType: "NOTE" }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["capsules"] });
-      resetAndClose();
-    },
-  });
+      if (!content && !hasFiles) {
+        throw new Error("Please provide either text content or at least one file attachment.");
+      }
 
-  // URL ingestion
-  const urlMutation = useMutation({
-    mutationFn: (values: z.infer<typeof urlSchema>) => {
-      const tags = values.tags ? values.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
-      return capsuleService.ingestUrl(values.url, tags);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["capsules"] });
-      resetAndClose();
-    },
-  });
+      setUploadProgress("Processing...");
 
-  // File upload → Capsule creation
-  const fileMutation = useMutation({
-    mutationFn: async (file: File) => {
-      setUploadProgress("Uploading file...");
-      const uploadResult = await capsuleService.uploadFile(file);
+      // 1. Upload all files if any exist
+      let assets: any[] = [];
+      if (hasFiles) {
+        setUploadProgress(`Uploading ${selectedFiles.length} file(s)...`);
+        const uploadPromises = selectedFiles.map((file) => capsuleService.uploadFile(file));
+        const uploadResults = await Promise.all(uploadPromises);
 
-      setUploadProgress("Creating capsule...");
-      const sourceType = file.type.startsWith("image/") ? "IMAGE" : "PDF";
+        assets = uploadResults.map((res) => ({
+          storagePath: res.objectName,
+          mimeType: res.mimeType,
+          size: res.size,
+          fileName: res.originalName,
+        }));
+      }
+
+      // 2. Determine primary source type
+      let sourceType = "NOTE";
+      if (!content && hasFiles) {
+        const firstFile = selectedFiles[0];
+        sourceType = firstFile.type.startsWith("image/") ? "IMAGE" : "PDF";
+      }
+
+      setUploadProgress("Creating Capsule...");
       return capsuleService.createWithAssets({
-        originalContent: `Uploaded: ${file.name}`,
+        originalContent: content || `[Uploaded ${selectedFiles.length} file(s)]`,
         sourceType,
-        assets: [{
-          storagePath: uploadResult.objectName,
-          mimeType: uploadResult.mimeType,
-          size: uploadResult.size,
-          fileName: uploadResult.originalName,
-        }],
+        assets: assets.length > 0 ? assets : undefined,
       });
     },
     onSuccess: () => {
@@ -107,11 +92,9 @@ export function CreateCapsuleDialog() {
 
   const resetAndClose = () => {
     setOpen(false);
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setUploadProgress("");
-    setActiveTab("note");
-    noteForm.reset();
-    urlForm.reset();
+    form.reset();
   };
 
   // Drag & drop handlers
@@ -129,194 +112,156 @@ export function CreateCapsuleDialog() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files?.[0]) {
-      setSelectedFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files?.length) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
     }
   }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setSelectedFile(e.target.files[0]);
+    if (e.target.files?.length) {
+      const newFiles = Array.from(e.target.files);
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
     }
+    // Reset file input so same file can be selected again if removed
+    e.target.value = '';
   };
 
-  const isPending = noteMutation.isPending || urlMutation.isPending || fileMutation.isPending;
+  const removeFile = (indexToRemove: number) => {
+    setSelectedFiles((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const isPending = createMutation.isPending;
 
   const getFileIcon = (file: File) => {
-    if (file.type.startsWith("image/")) return <ImageIcon className="h-8 w-8 text-blue-500" />;
-    if (file.type === "application/pdf") return <File className="h-8 w-8 text-red-500" />;
-    return <FileText className="h-8 w-8 text-muted-foreground" />;
+    if (file.type.startsWith("image/")) return <ImageIcon className="h-6 w-6 text-blue-500" />;
+    if (file.type === "application/pdf") return <FileIcon className="h-6 w-6 text-red-500" />;
+    return <FileText className="h-6 w-6 text-muted-foreground" />;
   };
 
+  // Prevent submission if form is completely empty
+  const isFormEmpty = !form.watch("originalContent")?.trim() && selectedFiles.length === 0;
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isPending && setOpen(isOpen)}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" /> New Capsule
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Create Capsule</DialogTitle>
+          <DialogTitle>Create Rich Capsule</DialogTitle>
           <DialogDescription>
-            Add a new memory capsule from text, URL, or file upload.
+            Type notes, paste URLs, or drop images/PDFs. The AI will weave everything together.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="note" className="flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5" /> Note
-            </TabsTrigger>
-            <TabsTrigger value="url" className="flex items-center gap-1.5">
-              <Globe className="h-3.5 w-3.5" /> URL
-            </TabsTrigger>
-            <TabsTrigger value="file" className="flex items-center gap-1.5">
-              <Upload className="h-3.5 w-3.5" /> File
-            </TabsTrigger>
-          </TabsList>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((v) => createMutation.mutate(v))} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="originalContent"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Type your notes, paste links, or write meeting minutes here..."
+                      className="min-h-[150px] resize-y text-base"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          {/* Note Tab */}
-          <TabsContent value="note">
-            <Form {...noteForm}>
-              <form onSubmit={noteForm.handleSubmit((v) => noteMutation.mutate(v))} className="space-y-4">
-                <FormField
-                  control={noteForm.control}
-                  name="originalContent"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Content</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Paste or type your notes, meeting minutes, ideas..."
-                          className="min-h-[120px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button type="submit" disabled={isPending}>
-                    {noteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Create Note
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </TabsContent>
+            {/* Attachments UI */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Attachments
+              </label>
 
-          {/* URL Tab */}
-          <TabsContent value="url">
-            <Form {...urlForm}>
-              <form onSubmit={urlForm.handleSubmit((v) => urlMutation.mutate(v))} className="space-y-4">
-                <FormField
-                  control={urlForm.control}
-                  name="url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Website URL</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://example.com/article" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={urlForm.control}
-                  name="tags"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tags (optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="tech, ai, research (comma separated)" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button type="submit" disabled={isPending}>
-                    {urlMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Crawl & Save
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </TabsContent>
-
-          {/* File Upload Tab */}
-          <TabsContent value="file">
-            <div className="space-y-4">
-              {!selectedFile ? (
-                <div
-                  className={cn(
-                    "border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors",
-                    dragActive
-                      ? "border-primary bg-primary/5"
-                      : "border-muted-foreground/25 hover:border-primary/50"
-                  )}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                  onClick={() => document.getElementById("file-input")?.click()}
-                >
-                  <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                  <p className="text-sm font-medium">Drop file here or click to browse</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Supports: Images (PNG, JPG, WEBP) and PDFs
-                  </p>
-                  <input
-                    id="file-input"
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                  />
-                </div>
-              ) : (
-                <div className="border rounded-lg p-4 flex items-center gap-3">
-                  {getFileIcon(selectedFile)}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{selectedFile.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(selectedFile.size / 1024).toFixed(1)} KB • {selectedFile.type}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => setSelectedFile(null)} className="shrink-0">
-                    <X className="h-4 w-4" />
-                  </Button>
+              {/* File List */}
+              {selectedFiles.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto pr-2">
+                  {selectedFiles.map((file, idx) => (
+                    <div key={idx} className="flex items-center gap-2 border rounded p-2 bg-muted/20">
+                      {getFileIcon(file)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">{file.name}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        onClick={() => removeFile(idx)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {uploadProgress && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {uploadProgress}
-                </div>
-              )}
-
-              <DialogFooter>
-                <Button
-                  disabled={!selectedFile || isPending}
-                  onClick={() => selectedFile && fileMutation.mutate(selectedFile)}
-                >
-                  {fileMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Upload & Process
-                </Button>
-              </DialogFooter>
+              {/* Dropzone */}
+              <div
+                className={cn(
+                  "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
+                  dragActive
+                    ? "border-primary bg-primary/5"
+                    : "border-muted-foreground/25 hover:border-primary/50"
+                )}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById("multi-file-input")?.click()}
+              >
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm font-medium">Add more files</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Drag & drop multiple Images or PDFs
+                </p>
+                <input
+                  id="multi-file-input"
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
 
-        {(noteMutation.isError || urlMutation.isError || fileMutation.isError) && (
-          <p className="text-sm text-destructive mt-2">
-            Something went wrong. Please try again.
-          </p>
-        )}
+            {uploadProgress && (
+              <div className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 p-3 rounded-md">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {uploadProgress}
+              </div>
+            )}
+
+            {createMutation.isError && (
+              <div className="text-sm font-medium text-destructive bg-destructive/10 p-3 rounded-md">
+                {createMutation.error instanceof Error ? createMutation.error.message : "Failed to create capsule. Please try again."}
+              </div>
+            )}
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={resetAndClose} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending || isFormEmpty}>
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create & Analyze
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

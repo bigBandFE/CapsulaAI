@@ -9,6 +9,7 @@ import ResearchPage from "@/pages/ResearchPage";
 import FeedbackPage from "@/pages/FeedbackPage";
 import InboxPage from "@/pages/InboxPage";
 import SettingsPage from "@/pages/SettingsPage";
+import EntityDetailPage from "@/pages/EntityDetailPage";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ function App() {
             <Route path="/graph" element={<GraphPage />} />
             <Route path="/research" element={<ResearchPage />} />
             <Route path="/timeline" element={<TimelinePage />} />
+            <Route path="/entities/:type/:name" element={<EntityDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>

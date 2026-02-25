@@ -18,19 +18,21 @@ router.get('/:name/timeline', async (req: Request, res: Response) => {
     }
 
     // Find the entity
-    const entity = await prisma.entity.findUnique({
+    const entity = await prisma.entity.findFirst({
       where: {
-        name_type: {
-          name: name,
-          type: type as string
-        }
+        canonicalName: name,
+        type: type as string
       },
       include: {
-        capsules: {
-          where: { status: 'COMPLETED' },
-          orderBy: { createdAt: 'asc' },
+        capsuleEntities: {
           include: {
-            entities: true
+            capsule: {
+              include: {
+                capsuleEntities: {
+                  include: { entity: true }
+                }
+              }
+            }
           }
         }
       }
@@ -40,9 +42,15 @@ router.get('/:name/timeline', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Entity not found' });
     }
 
+    // Extract capsules mapping
+    const capsules = entity.capsuleEntities
+      .map(ce => ce.capsule)
+      .filter(c => c.status === 'COMPLETED')
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
     // Group capsules by date
     const timelineByDate: Record<string, any[]> = {};
-    entity.capsules.forEach(capsule => {
+    capsules.forEach(capsule => {
       const dateKey = capsule.createdAt.toISOString().split('T')[0];
       if (!timelineByDate[dateKey]) {
         timelineByDate[dateKey] = [];
@@ -51,8 +59,8 @@ router.get('/:name/timeline', async (req: Request, res: Response) => {
       timelineByDate[dateKey].push({
         id: capsule.id,
         createdAt: capsule.createdAt,
-        title: (capsule.structuredData as any)?.meta?.title || 'Untitled',
-        summary: (capsule.structuredData as any)?.content?.summary,
+        title: capsule.summary || 'Untitled',
+        summary: capsule.summary,
         context: extractEntityContext(capsule, name)
       });
     });
@@ -65,11 +73,11 @@ router.get('/:name/timeline', async (req: Request, res: Response) => {
 
     res.json({
       entity: {
-        name: entity.name,
+        name: entity.canonicalName,
         type: entity.type,
-        firstMention: entity.capsules[0]?.createdAt,
-        lastMention: entity.capsules[entity.capsules.length - 1]?.createdAt,
-        totalMentions: entity.capsules.length
+        firstMention: capsules[0]?.createdAt,
+        lastMention: capsules[capsules.length - 1]?.createdAt,
+        totalMentions: capsules.length
       },
       timeline
     });
@@ -92,18 +100,18 @@ router.get('/:name', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'type parameter required' });
     }
 
-    const entity = await prisma.entity.findUnique({
+    const entity = await prisma.entity.findFirst({
       where: {
-        name_type: {
-          name: name,
-          type: type as string
-        }
+        canonicalName: name,
+        type: type as string
       },
       include: {
-        capsules: {
-          where: { status: 'COMPLETED' },
-          orderBy: { createdAt: 'desc' },
-          take: 20 // Limit to recent 20
+        capsuleEntities: {
+          include: {
+            capsule: true
+          },
+          take: 20,
+          orderBy: { createdAt: 'desc' }
         }
       }
     });
@@ -112,16 +120,20 @@ router.get('/:name', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Entity not found' });
     }
 
+    const validCapsules = entity.capsuleEntities
+      .map(ce => ce.capsule)
+      .filter(c => c.status === 'COMPLETED');
+
     res.json({
       id: entity.id,
-      name: entity.name,
+      name: entity.canonicalName,
       type: entity.type,
       createdAt: entity.createdAt,
-      capsuleCount: entity.capsules.length,
-      recentCapsules: entity.capsules.map(c => ({
+      capsuleCount: validCapsules.length,
+      recentCapsules: validCapsules.map(c => ({
         id: c.id,
         createdAt: c.createdAt,
-        title: (c.structuredData as any)?.meta?.title || 'Untitled'
+        title: c.summary || 'Untitled'
       }))
     });
   } catch (error) {
@@ -133,11 +145,11 @@ router.get('/:name', async (req: Request, res: Response) => {
  * Helper: Extract context around entity mention from capsule
  */
 function extractEntityContext(capsule: any, entityName: string): string {
-  const content = capsule.originalContent || '';
+  const content = capsule.rawContent || '';
   const index = content.toLowerCase().indexOf(entityName.toLowerCase());
 
   if (index === -1) {
-    return (capsule.structuredData as any)?.content?.summary || content.substring(0, 100);
+    return capsule.summary || content.substring(0, 100);
   }
 
   // Extract ~100 chars around the mention
@@ -152,7 +164,6 @@ function extractEntityContext(capsule: any, entityName: string): string {
 }
 
 import { RelationshipService } from '../services/relationship';
-import { RelationshipType } from '@prisma/client';
 
 /**
  * GET /api/entities/:id/relationships
@@ -161,7 +172,7 @@ import { RelationshipType } from '@prisma/client';
 router.get('/:id/relationships', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const type = req.query.type as RelationshipType | undefined;
+    const type = req.query.type as string | undefined;
     const direction = req.query.direction as 'from' | 'to' | 'both' | undefined;
 
     const relationships = await RelationshipService.getEntityRelationships(id, type, direction);
@@ -180,7 +191,7 @@ router.get('/:id/related', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const depth = parseInt(req.query.depth as string) || 2;
-    const type = req.query.type as RelationshipType | undefined;
+    const type = req.query.type as string | undefined;
 
     const entities = await RelationshipService.getRelatedEntities(id, depth, type);
     res.json(entities);

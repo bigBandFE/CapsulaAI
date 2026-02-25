@@ -1,7 +1,6 @@
-import express from 'express';
-import { PrismaClient, CapsuleStatus, SourceType } from '@prisma/client';
+import { PrismaClient, CapsuleStatus } from '@prisma/client';
 import { CrawlerService } from '../services/crawler';
-
+import express from 'express';
 const router = express.Router();
 const prisma = new PrismaClient();
 
@@ -22,16 +21,9 @@ router.post('/url', async (req, res) => {
     const capsule = await prisma.capsule.create({
       data: {
         status: CapsuleStatus.PENDING,
-        sourceType: SourceType.WEBSITE,
-        originalContent: content, // Markdown/Text content
-        structuredData: {
-          meta: {
-            title: title,
-            source_url: url,
-            created_at: new Date().toISOString()
-          },
-          tags: tags || []
-        }
+        sourceTypes: ['WEBSITE'],
+        rawContent: `Title: ${title}\nURL: ${url}\n\n${content}`,
+        summary: title
       }
     });
 

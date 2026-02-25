@@ -67,7 +67,8 @@ export default function CapsuleDetailPage() {
 
   const status = statusConfig[capsule.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
-  const SourceIcon = sourceIcons[capsule.sourceType] || FileText;
+  const primarySource = capsule.sourceTypes?.[0] || capsule.sourceType || "NOTE";
+  const SourceIcon = sourceIcons[primarySource] || FileText;
   const sd = capsule.structuredData;
 
   return (
@@ -79,7 +80,7 @@ export default function CapsuleDetailPage() {
         </Button>
         <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-bold tracking-tight truncate">
-            {sd?.meta?.title || sd?.content?.title || "Untitled Capsule"}
+            {capsule.summary || sd?.meta?.title || sd?.content?.title || "Untitled Capsule"}
           </h2>
           <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
             <SourceIcon className="h-4 w-4" />
@@ -215,21 +216,60 @@ export default function CapsuleDetailPage() {
         </Card>
       )}
 
-      {/* Entities */}
-      {sd?.entities && sd.entities.length > 0 && (
+      {/* Extracted Entities */}
+      {capsule.capsuleEntities && capsule.capsuleEntities.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5" /> Entities ({sd.entities.length})
+              <Users className="h-5 w-5" /> Extracted Entities ({capsule.capsuleEntities.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {sd.entities.map((entity: any, i: number) => (
-                <Badge key={i} variant="outline" className="gap-1 py-1">
-                  <span className="text-[10px] uppercase text-muted-foreground">{entity.type}</span>
-                  <span>{entity.name}</span>
+              {capsule.capsuleEntities.map((link: any, i: number) => (
+                <Badge
+                  key={i}
+                  variant="outline"
+                  className="gap-1 py-1 cursor-pointer hover:bg-accent transition-colors"
+                  onClick={() => navigate(`/entities/${link.entity.type.toLowerCase()}/${encodeURIComponent(link.entity.canonicalName)}`)}
+                >
+                  <span className="text-[10px] uppercase text-muted-foreground">{link.entity.type}</span>
+                  <span>{link.entity.canonicalName}</span>
                 </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Extracted Relations */}
+      {capsule.capsuleRelations && capsule.capsuleRelations.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="h-5 w-5" /> Extracted Relations ({capsule.capsuleRelations.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {capsule.capsuleRelations.map((link: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 p-2 rounded-md bg-accent/30 text-sm">
+                  <span
+                    className="font-medium cursor-pointer hover:underline"
+                    onClick={() => navigate(`/entities/${link.relation.fromEntity.type.toLowerCase()}/${encodeURIComponent(link.relation.fromEntity.canonicalName)}`)}
+                  >
+                    {link.relation.fromEntity.canonicalName}
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] shrink-0 uppercase">
+                    {link.relation.relationType}
+                  </Badge>
+                  <span
+                    className="font-medium cursor-pointer hover:underline"
+                    onClick={() => navigate(`/entities/${link.relation.toEntity.type.toLowerCase()}/${encodeURIComponent(link.relation.toEntity.canonicalName)}`)}
+                  >
+                    {link.relation.toEntity.canonicalName}
+                  </span>
+                </div>
               ))}
             </div>
           </CardContent>
@@ -275,7 +315,7 @@ export default function CapsuleDetailPage() {
         <CardContent>
           <ScrollArea className="max-h-[400px]">
             <pre className="text-sm whitespace-pre-wrap font-sans leading-relaxed">
-              {capsule.originalContent || "(no content)"}
+              {capsule.rawContent || capsule.originalContent || "(no content)"}
             </pre>
           </ScrollArea>
         </CardContent>

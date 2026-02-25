@@ -57,7 +57,7 @@ export class ModelAdapter {
             role: msg.role,
             content: msg.content
           } as OpenAI.Chat.ChatCompletionMessageParam;
-        } else {
+        } else if (Array.isArray(msg.content)) {
           // Map ContentBlocks to OpenAI ContentParts
           const contentParts = msg.content.map(block => {
             if (block.type === 'image_url') {
@@ -75,11 +75,24 @@ export class ModelAdapter {
             }
           });
 
-          return {
-            role: msg.role,
-            content: contentParts
-          } as OpenAI.Chat.ChatCompletionMessageParam;
+          // Workaround for strict OpenAI typings requiring specific role interfaces when using Array content
+          if (msg.role === 'user') {
+            return {
+              role: 'user',
+              content: contentParts
+            } as OpenAI.Chat.ChatCompletionUserMessageParam;
+          } else {
+            return {
+              role: msg.role,
+              content: contentParts as any // fallback for other roles that might not natively support arrays in all SDK versions strictly
+            } as OpenAI.Chat.ChatCompletionMessageParam;
+          }
         }
+
+        return {
+          role: msg.role,
+          content: String(msg.content)
+        } as OpenAI.Chat.ChatCompletionMessageParam;
       });
 
       // Add JSON instruction if requested

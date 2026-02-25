@@ -2,11 +2,14 @@ import { api } from '@/lib/api';
 
 export interface Capsule {
   id: string;
-  sourceType: 'NOTE' | 'IMAGE' | 'PDF' | 'WEBSITE' | 'AUDIO';
+  sourceType?: string;
+  sourceTypes: string[];
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'ARCHIVED';
   createdAt: string;
   updatedAt: string;
   originalContent?: string;
+  rawContent?: string;
+  summary?: string;
   structuredData?: any;
   isSanitized: boolean;
   qualityScore?: number;
@@ -17,6 +20,32 @@ export interface Capsule {
     mimeType: string;
     size: number;
     fileName?: string;
+  }>;
+  capsuleEntities?: Array<{
+    id: string;
+    role?: string;
+    entity: {
+      id: string;
+      canonicalName: string;
+      type: string;
+    }
+  }>;
+  capsuleRelations?: Array<{
+    id: string;
+    relation: {
+      id: string;
+      relationType: string;
+      fromEntity: {
+        id: string;
+        canonicalName: string;
+        type: string;
+      };
+      toEntity: {
+        id: string;
+        canonicalName: string;
+        type: string;
+      };
+    }
   }>;
 }
 

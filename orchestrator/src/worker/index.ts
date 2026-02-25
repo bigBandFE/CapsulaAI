@@ -120,63 +120,86 @@ const processCapsule = async (capsuleId: string) => {
     const capsule = await prisma.capsule.findUnique({ where: { id: capsuleId } });
     if (!capsule) throw new Error('Capsule content missing');
 
-    // 0. Vision/VLM Analysis Pipeline
-    // For ANY capsule with uploaded files, run VLM to extract/analyze actual content.
-    // The frontend may have set originalContent to something like "Uploaded: filename.png"
-    // which is not meaningful — we need to analyze the actual file.
-    const asset = await prisma.asset.findFirst({ where: { capsuleId } });
-    if (asset) {
-      console.log(`[Worker] File asset detected (${capsule.sourceType}). Running VLM Pipeline...`);
-      try {
-        // Download file from MinIO to temp directory
-        const tempDir = path.join(os.tmpdir(), 'capsula-vision');
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true });
+    // 0. Multi-Modal Parsing Pipeline
+    let aggregatedContent = capsule.rawContent || '';
+
+    // A. Implicit Web Crawling
+    // Extract any URLs typed or pasted into the text content
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const urlsFound = aggregatedContent.match(urlRegex) || [];
+
+    if (urlsFound.length > 0) {
+      console.log(`[Worker] Found ${urlsFound.length} explicit URLs in text. Crawling...`);
+      const { CrawlerService } = await import('../services/crawler');
+
+      for (const url of urlsFound) {
+        try {
+          const crawled = await CrawlerService.crawl(url);
+          aggregatedContent += `\n\n[Crawled content from ${url}]:\n${crawled.content}\n---`;
+        } catch (crawlErr) {
+          console.warn(`[Worker] Failed to crawl ${url}: ${crawlErr}`);
         }
-        const tempFile = path.join(tempDir, asset.storagePath);
-        console.log(`[Worker] Downloading ${asset.storagePath} from MinIO → ${tempFile}`);
-
-        const dataStream = await minioClient.getObject(BUCKET_NAME, asset.storagePath);
-        const writeStream = fs.createWriteStream(tempFile);
-
-        await new Promise<void>((resolve, reject) => {
-          dataStream.pipe(writeStream);
-          dataStream.on('error', reject);
-          writeStream.on('finish', resolve);
-          writeStream.on('error', reject);
-        });
-
-        console.log(`[Worker] Downloaded. Running VLM analysis...`);
-        const extractedText = await VisionService.analyzeFile(tempFile);
-
-        if (extractedText && extractedText.trim().length > 0) {
-          capsule.originalContent = extractedText;
-          console.log(`[Worker] VLM extracted ${extractedText.length} chars of content.`);
-        } else {
-          capsule.originalContent = `[VLM] No content could be extracted from ${asset.fileName || asset.storagePath}`;
-        }
-
-        // Persist extracted content to DB immediately so it's not lost
-        await prisma.capsule.update({
-          where: { id: capsuleId },
-          data: { originalContent: capsule.originalContent }
-        });
-
-        // Clean up temp file
-        try { fs.unlinkSync(tempFile); } catch (_) { /* ignore cleanup errors */ }
-      } catch (e) {
-        console.warn(`[Worker] VLM Pipeline Failed: ${e}`);
-        capsule.originalContent = `[VLM Error] Failed to process file: ${asset.fileName || asset.storagePath}`;
       }
     }
 
-    if (!capsule.originalContent) {
-      // If still empty after OCR attempt
+    // B. Multi-Asset Vision (OCR)
+    // Run VLM to extract/analyze actual content from all uploaded files.
+    const assets = await prisma.asset.findMany({ where: { capsuleId } });
+    if (assets.length > 0) {
+      console.log(`[Worker] File assets detected (${assets.length}). Running VLM Pipeline for all...`);
+
+      for (const asset of assets) {
+        try {
+          // Download file from MinIO to temp directory
+          const tempDir = path.join(os.tmpdir(), 'capsula-vision');
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+          const tempFile = path.join(tempDir, asset.storagePath);
+          console.log(`[Worker] Downloading ${asset.storagePath} from MinIO → ${tempFile}`);
+
+          const dataStream = await minioClient.getObject(BUCKET_NAME, asset.storagePath);
+          const writeStream = fs.createWriteStream(tempFile);
+
+          await new Promise<void>((resolve, reject) => {
+            dataStream.pipe(writeStream);
+            dataStream.on('error', reject);
+            writeStream.on('finish', resolve);
+            writeStream.on('error', reject);
+          });
+
+          console.log(`[Worker] Downloaded ${asset.fileName}. Running VLM analysis...`);
+          const extractedText = await VisionService.analyzeFile(tempFile);
+
+          if (extractedText && extractedText.trim().length > 0) {
+            aggregatedContent += `\n\n[Content from ${asset.fileName || 'Asset'}]:\n${extractedText}\n---`;
+            console.log(`[Worker] VLM extracted ${extractedText.length} chars from ${asset.fileName}.`);
+          } else {
+            console.log(`[Worker] [VLM] No content could be extracted from ${asset.fileName}`);
+          }
+
+          // Clean up temp file
+          try { fs.unlinkSync(tempFile); } catch (_) { /* ignore cleanup errors */ }
+        } catch (e) {
+          console.warn(`[Worker] VLM Pipeline Failed for ${asset.fileName}: ${e}`);
+        }
+      }
+    }
+
+    capsule.rawContent = aggregatedContent.trim();
+    if (!capsule.rawContent) {
+      // If still empty after web and OCR attempts
       throw new Error('Capsule content missing');
     }
 
+    // Persist extracted mega-content to DB immediately so it's not lost
+    await prisma.capsule.update({
+      where: { id: capsuleId },
+      data: { rawContent: capsule.rawContent }
+    });
+
     // 1. Sanitize (Privacy Guard) - Always do this, we need it if we fall back to cloud
-    const { sanitized, map } = Sanitizer.sanitize(capsule.originalContent);
+    const { sanitized, map } = Sanitizer.sanitize(capsule.rawContent!);
     const isSanitized = Object.keys(map).length > 0;
 
     // Routing Logic:
@@ -206,7 +229,7 @@ const processCapsule = async (capsuleId: string) => {
     // Use Local Model to judge if we need Cloud aid
     let complexity = 'SIMPLE';
     try {
-      const analyzePrompt = PromptEngine.getComplexityAnalysisPrompt(capsule.originalContent);
+      const analyzePrompt = PromptEngine.getComplexityAnalysisPrompt(capsule.rawContent!);
       // Quick check using Local Adapter
       const analysisRes = await localAdapter.chatCompletion([{ role: 'user', content: analyzePrompt }], true);
       const analysisJson = JSON.parse(analysisRes.content.replace(/```json|```/g, '').trim());
@@ -228,14 +251,14 @@ const processCapsule = async (capsuleId: string) => {
 
     // Source-type routing override:
     // WEBSITE capsules always use Local LLM for faster extraction speed
-    if (capsule.sourceType === 'WEBSITE' && localCapability !== ModelCapability.UNUSABLE) {
+    if (capsule.sourceTypes.includes('WEBSITE') && localCapability !== ModelCapability.UNUSABLE) {
       console.log(`[Worker] WEBSITE source → forcing Local LLM for faster extraction.`);
       activeAdapter = localAdapter;
       activeCapability = localCapability;
       usingCloud = false;
     }
 
-    const contentToProcess = usingCloud ? sanitized : capsule.originalContent;
+    const contentToProcess = usingCloud ? sanitized : capsule.rawContent!;
     const prompt = PromptEngine.getExtractionPrompt(contentToProcess, activeCapability);
 
     // 5. Execution
@@ -306,8 +329,8 @@ const processCapsule = async (capsuleId: string) => {
 
     // 6. Generate Embedding (for the original content + summary)
     // We use the ORIGINAL content for embedding, as local embedding model is safe/local
-    const summary = structuredData.content?.summary || capsule.originalContent.substring(0, 500);
-    const embedding = await generateEmbedding(capsule.originalContent + '\n' + summary);
+    const summary = structuredData.content?.summary || capsule.rawContent!.substring(0, 500);
+    const embedding = await generateEmbedding(capsule.rawContent + '\n' + summary);
 
     // Prepare embeddings for creation
     const embeddings = [{
@@ -325,7 +348,7 @@ const processCapsule = async (capsuleId: string) => {
         data: {
           status: CapsuleStatus.COMPLETED,
           isSanitized: isSanitized,
-          structuredData: structuredData as any
+          summary: structuredData.content?.summary || null
         }
       });
 
@@ -335,8 +358,8 @@ const processCapsule = async (capsuleId: string) => {
       const summarySafe = summary.replace(/\0/g, ''); // Remove null bytes if any
 
       await tx.$executeRaw`
-            INSERT INTO "Embedding" ("id", "capsuleId", "vector", "contentChunk", "chunkIndex")
-            VALUES (gen_random_uuid(), ${capsuleId}, ${vectorStr}::vector, ${summarySafe}, 0);
+            INSERT INTO "Embedding" ("id", "objectType", "objectId", "vector", "capsuleId")
+            VALUES (gen_random_uuid(), 'CAPSULE'::"ObjectType", ${capsuleId}, ${vectorStr}::vector, ${capsuleId});
         `;
     });
 
@@ -360,27 +383,25 @@ const processCapsule = async (capsuleId: string) => {
           // But implicit m-n doesn't support 'connectOrCreate' directly on the relation update easily without ID.
           // So we explicitly Upsert the Entity first, then Connect.
 
-          const dbEntity = await prisma.entity.upsert({
-            where: {
-              name_type: {
-                name: safeName,
+          const normalizedName = safeName.toLowerCase().trim();
+          let dbEntity = await prisma.entity.findFirst({
+            where: { normalizedName, type: safeType }
+          });
+          if (!dbEntity) {
+            dbEntity = await prisma.entity.create({
+              data: {
+                canonicalName: safeName,
+                normalizedName,
                 type: safeType
               }
-            },
-            update: {}, // No changes if exists
-            create: {
-              name: safeName,
-              type: safeType
-            }
-          });
+            });
+          }
 
           // Link to Capsule
-          await prisma.capsule.update({
-            where: { id: capsule.id },
+          await prisma.capsuleEntity.create({
             data: {
-              entities: {
-                connect: { id: dbEntity.id }
-              }
+              capsuleId: capsule.id,
+              entityId: dbEntity.id
             }
           });
 
