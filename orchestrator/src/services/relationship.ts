@@ -407,8 +407,8 @@ export class RelationshipService {
         id: r.id,
         source: r.fromEntityId,
         target: r.toEntityId,
-        type: r.type,
-        confidence: r.confidence
+        type: r.relationType,
+        confidence: r.strength
       }))
     };
   }

@@ -9,9 +9,9 @@ const prisma = new PrismaClient();
 
 // Initialize RAG service with local model config
 const ragConfig: LLMConfig = {
-  endpoint: process.env.LOCAL_MODEL_ENDPOINT || 'http://host.docker.internal:11434/v1',
-  modelName: process.env.LOCAL_MODEL_NAME || 'qwen2.5:7b',
-  apiKey: process.env.LOCAL_API_KEY
+  endpoint: process.env.LOCAL_MODEL_ENDPOINT || 'https://api.minimax.io/v1',
+  modelName: process.env.LOCAL_MODEL_NAME || 'MiniMax-M2.5',
+  apiKey: process.env.LOCAL_API_KEY || 'sk-api-hcwStRWpvcohgSUAA94N28Wnlf857Ly6HDecy-xCI_jLwOzUOZdMFKjftb0SHoud_q2eUxV529a1ulgP-3LcH6efxnGN_kckmpRUTIgdjh2dRZMUFh2Wa-c'
 };
 
 const ragService = new RAGService(ragConfig);

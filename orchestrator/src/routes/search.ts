@@ -23,10 +23,10 @@ router.post('/', async (req: Request, res: Response) => {
     const result = await prisma.$queryRaw`
       SELECT 
         e.id, 
-        e."capsuleId", 
-        e."contentChunk", 
+        e."objectId" as "capsuleId", 
         1 - (e.vector <=> ${vectorStr}::vector) as similarity
       FROM "Embedding" e
+      WHERE e."objectType" = 'CAPSULE'::"ObjectType"
       ORDER BY similarity DESC
       LIMIT ${Number(limit)};
     `;

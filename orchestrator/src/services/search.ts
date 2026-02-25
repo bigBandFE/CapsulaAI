@@ -61,10 +61,9 @@ export class SearchService {
         c."sourceTypes",
         c."summary",
         c."rawContent",
-        e."contentChunk",
         (e.vector <=> '${vectorStr}'::vector) as distance
       FROM "Capsule" c
-      JOIN "Embedding" e ON e."capsuleId" = c.id
+      JOIN "Embedding" e ON e."objectId" = c.id AND e."objectType" = 'CAPSULE'::"ObjectType"
       WHERE ${whereClause}
       ORDER BY distance ASC
       LIMIT ${limit * 2}
@@ -76,7 +75,6 @@ export class SearchService {
       sourceTypes: string[];
       summary: string;
       rawContent: string;
-      contentChunk: string;
       distance: number;
     }>>(sqlQuery);
 
@@ -108,7 +106,7 @@ export class SearchService {
           sourceTypes: r.sourceTypes
         },
         score: 1 - r.distance, // Convert distance to similarity
-        relevantChunk: r.contentChunk || r.rawContent?.substring(0, 200) || ''
+        relevantChunk: r.rawContent?.substring(0, 200) || ''
       }))
       .filter(r => r.score >= threshold)
       .slice(0, limit);

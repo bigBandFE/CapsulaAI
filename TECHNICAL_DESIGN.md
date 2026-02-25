@@ -138,13 +138,14 @@ erDiagram
 
 The pipeline transforms raw input into structured knowledge.
 
-1.  **Ingestion**: User uploads file or URL.
-    - *Action*: File stored in MinIO. Capsule created with status `PENDING`.
+1.  **Ingestion**: User uploads file(s), inputs a URL directly, or writes text containing URLs.
+    - *Action*: Files stored in MinIO. Capsule created with status `PENDING`.
 2.  **Scheduling**: Orchestrator picks up `PENDING` capsule.
-3.  **Processing (Worker)**:
-    - **Vision (VLM)**: If image/PDF, send to Vision Model (Kimi) -> Get description & OCR.
-    - **Crawling**: If URL, Puppeteer fetches content -> `readability` extracts text.
-    - **Analysis (LLM)**: Text sent to LLM (MiniMax) with "Extraction Prompt".
+3.  **Multi-Modal Processing (Worker)**:
+    - **Crawling**: Implicitly detect any explicit URLs in the text -> Headless browser/Crawler extracts text.
+    - **Vision (VLM)**: Iteratively pass *all* attached assets (images/PDFs) to the Vision Model (Kimi) for OCR and layout description.
+    - **Aggregation**: Combine user input, crawled text, and OCR outputs into a mega-string.
+    - **Analysis (LLM)**: Mega-string sent to LLM (MiniMax) with the "Extraction Prompt".
         - *Output*: JSON containing Summary, Entities, Relations, Tags.
     - **Embedding**: Summary text sent to Embedding Model -> Vector.
 4.  **Storage**:

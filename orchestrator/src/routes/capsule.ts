@@ -61,7 +61,22 @@ router.get('/:id', async (req: Request, res: Response) => {
       where: { id },
       include: {
         assets: true,
-        embeddings: true
+        embeddings: true,
+        capsuleEntities: {
+          include: {
+            entity: true
+          }
+        },
+        capsuleRelations: {
+          include: {
+            relation: {
+              include: {
+                fromEntity: true,
+                toEntity: true
+              }
+            }
+          }
+        }
       }
     });
 

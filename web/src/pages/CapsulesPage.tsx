@@ -24,14 +24,12 @@ function CapsuleCard({ capsule }: { capsule: Capsule }) {
     <Card className="hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => navigate(`/capsules/${capsule.id}`)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium truncate max-w-[200px]">
-          {capsule.structuredData?.meta?.title || "Untitled Capsule"}
+          {capsule.summary || capsule.structuredData?.meta?.title || "Untitled Capsule"}
         </CardTitle>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-xs text-muted-foreground truncate line-clamp-2 h-8">
-          {capsule.originalContent}
-        </div>
+        {capsule.rawContent || capsule.originalContent}
       </CardContent>
       <CardFooter className="flex justify-between items-center pt-2">
         <Badge variant={

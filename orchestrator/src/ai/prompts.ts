@@ -16,7 +16,7 @@ export class PromptEngine {
       "entities": [
         {
           "name": "string",
-          "type": "PERSON | ORGANIZATION | LOCATION | DATE | MONEY",
+          "type": "PERSON | ORGANIZATION | LOCATION | EVENT | PRODUCT | DATE | MONEY",
           "role": "optional string (for PERSON)",
           "contact": "optional string (email/phone)",
           "amount": "optional number (for MONEY)",
@@ -37,10 +37,10 @@ export class PromptEngine {
       "relationships": [
         {
           "from": "entity name",
-          "fromType": "PERSON | ORGANIZATION | LOCATION",
+          "fromType": "PERSON | ORGANIZATION | LOCATION | EVENT | PRODUCT | DATE | MONEY",
           "to": "entity name",
-          "toType": "PERSON | ORGANIZATION | LOCATION",
-          "type": "WORKS_FOR | FOUNDED | INVESTED_IN | LOCATED_IN | ACQUIRED | PARTNERED_WITH | REPORTS_TO | OWNS | ATTENDED | MENTIONED_WITH | OTHER",
+          "toType": "PERSON | ORGANIZATION | LOCATION | EVENT | PRODUCT | DATE | MONEY",
+          "type": "WORKS_FOR | FOUNDED | INVESTED_IN | LOCATED_IN | ACQUIRED | PARTNERED_WITH | REPORTS_TO | OWNS | ATTENDED | MENTIONED_WITH | OCCURRED_ON | COSTS | VALUED_AT | CREATED | RELEASED | OTHER",
           "confidence": "0.0-1.0",
           "metadata": {
             "title": "optional string (job title, role)",
@@ -58,8 +58,8 @@ export class PromptEngine {
       return `
       You are an expert knowledge curator. Analyze the following text and extract structured insights.
       
-      Step 1: Identify the main topic and key entities (People, Organizations, Locations, Dates, Money).
-      Step 2: Identify relationships between entities (who works for whom, who founded what, etc.).
+      Step 1: Identify the main topic and key entities (People, Organizations, Locations, Events, Products, Dates, Money).
+      Step 2: Identify relationships between entities. CRITICAL: Every extracted Entity (especially Dates and Money) MUST be connected to at least one other entity via a Relationship. Do not leave isolated entities.
       Step 3: Identify any actionable items (Todos, Reminders, Follow-ups).
       Step 4: Summarize the core message in 1-2 sentences.
       Step 5: Extract key points and suggest relevant tags.
@@ -80,12 +80,11 @@ export class PromptEngine {
       - WORKS_FOR: Person → Organization (extract job title if available)
       - FOUNDED: Person → Organization (extract founding date if available)
       - INVESTED_IN: Organization → Organization (extract amount and round if available)
-      - LOCATED_IN: Person/Organization → Location
+      - LOCATED_IN: Person/Organization/Event → Location
       - ACQUIRED: Organization → Organization (extract amount and date if available)
-      - PARTNERED_WITH: Organization → Organization
-      - REPORTS_TO: Person → Person
-      - OWNS: Person/Organization → Organization
-      - ATTENDED: Person → Organization (education)
+      - CREATED / RELEASED: Organization/Person → Product/Event
+      - OCCURRED_ON: Event/Action → DATE
+      - COSTS / VALUED_AT: Product/Organization/Event → MONEY
       - MENTIONED_WITH: Any → Any (co-occurrence in same context)
       - Confidence: 1.0 for explicit statements, 0.5-0.9 for implied relationships
 

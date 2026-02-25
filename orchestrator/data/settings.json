@@ -1,0 +1,17 @@
+{
+  "local": {
+    "endpoint": "https://api.minimax.io/v1",
+    "modelName": "MiniMax-M2.5",
+    "apiKey": "sk-api-hcwStRWpvcohgSUAA94N28Wnlf857Ly6HDecy-xCI_jLwOzUOZdMFKjftb0SHoud_q2eUxV529a1ulgP-3LcH6efxnGN_kckmpRUTIgdjh2dRZMUFh2Wa-c"
+  },
+  "cloud": {
+    "endpoint": "https://api.minimax.io/v1",
+    "modelName": "MiniMax-M2.5",
+    "apiKey": "sk-api-hcwStRWpvcohgSUAA94N28Wnlf857Ly6HDecy-xCI_jLwOzUOZdMFKjftb0SHoud_q2eUxV529a1ulgP-3LcH6efxnGN_kckmpRUTIgdjh2dRZMUFh2Wa-c"
+  },
+  "vision": {
+    "endpoint": "https://api.moonshot.ai/v1",
+    "modelName": "kimi-k2.5",
+    "apiKey": "sk-TJQ8uNS3hPOY4giLvJHVHB8ivhWeCTARCbTU1qgUBdJkX2eT"
+  }
+}

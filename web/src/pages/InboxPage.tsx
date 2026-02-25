@@ -193,8 +193,9 @@ export default function InboxPage() {
 function CapsuleRow({ capsule }: { capsule: Capsule }) {
   const status = statusConfig[capsule.status] || statusConfig.PENDING;
   const StatusIcon = status.icon;
-  const SourceIcon = sourceIcons[capsule.sourceType] || FileText;
-  const title = capsule.structuredData?.meta?.title || capsule.originalContent?.slice(0, 60) || "Untitled";
+  const primarySource = capsule.sourceTypes?.[0] || capsule.sourceType || "NOTE";
+  const SourceIcon = sourceIcons[primarySource] || FileText;
+  const title = capsule.summary || capsule.structuredData?.meta?.title || capsule.rawContent?.slice(0, 60) || capsule.originalContent?.slice(0, 60) || "Untitled";
 
   return (
     <div className="flex items-center gap-3 p-2 rounded-md hover:bg-accent/50 transition-colors">
@@ -205,7 +206,7 @@ function CapsuleRow({ capsule }: { capsule: Capsule }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{title}</p>
         <p className="text-[10px] text-muted-foreground">
-          {capsule.sourceType} • {format(new Date(capsule.createdAt), "MMM d, HH:mm")}
+          {primarySource} • {format(new Date(capsule.createdAt), "MMM d, HH:mm")}
         </p>
       </div>
     </div>
