@@ -102,7 +102,7 @@ export default function TasksPage() {
     },
   });
 
-  const applyMutation = useMutation({
+  const applyMutation = useMutation<MaintenanceTask, Error, string>({
     mutationFn: applyTask,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance-tasks'] });
@@ -110,8 +110,8 @@ export default function TasksPage() {
     },
   });
 
-  const revertMutation = useMutation({
-    mutationFn: revertTask,
+  const revertMutation = useMutation<MaintenanceTask, Error, string>({
+    mutationFn: (id: string) => revertTask(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['maintenance-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['maintenance-health'] });

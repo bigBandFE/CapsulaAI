@@ -116,3 +116,15 @@ export const getMaintenanceStats = async (): Promise<{
   const response = await api.get('/maintenance/stats');
   return response.data.data;
 };
+
+// Scan orphans
+export const scanOrphans = async (): Promise<{ count: number; tasks: MaintenanceTask[] }> => {
+  const response = await api.post('/maintenance/scan/orphans');
+  return response.data.data;
+};
+
+// Revert task
+export const revertTask = async (id: string, comment?: string): Promise<MaintenanceTask> => {
+  const response = await api.post(`/maintenance/tasks/${id}/revert`, { comment });
+  return response.data.data;
+};
