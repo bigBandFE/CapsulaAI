@@ -28,7 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Search, Trash2, Edit3, Pause, Play, RotateCcw } from 'lucide-react';
-import { getCards, deleteCard, suspendCard, resumeCard, resetCard, ReviewCard } from '@/services/review';
+import { getCards, deleteCard, suspendCard, resumeCard, resetCard, type ReviewCard } from '@/services/review';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 

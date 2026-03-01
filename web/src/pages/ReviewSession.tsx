@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { ArrowLeft, RotateCcw, SkipForward, Edit3 } from 'lucide-react';
-import { startSession, submitReview, completeSession, ReviewCard } from '@/services/review';
+import { startSession, submitReview, completeSession, type ReviewCard } from '@/services/review';
 
 interface ReviewSessionProps {
   onComplete: () => void;

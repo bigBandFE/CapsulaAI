@@ -18,7 +18,7 @@ import {
   TrendingUp,
   AlertCircle,
 } from 'lucide-react';
-import { getDashboard, getStats, ReviewCard } from '@/services/review';
+import { getDashboard, getStats, type ReviewCard } from '@/services/review';
 import { ReviewSession } from './ReviewSession';
 import { CardList } from '@/components/review/CardList';
 import { CreateCardDialog } from '@/components/review/CreateCardDialog';

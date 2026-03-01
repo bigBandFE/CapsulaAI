@@ -12,6 +12,10 @@ import SettingsPage from "@/pages/SettingsPage";
 import EntityDetailPage from "@/pages/EntityDetailPage";
 import ReviewPage from "@/pages/ReviewPage";
 import MaintenancePage from "@/pages/MaintenancePage";
+import TasksPage from "@/pages/maintenance/TasksPage";
+import TaskDetailPage from "@/pages/maintenance/TaskDetailPage";
+import ReviewQueuePage from "@/pages/maintenance/ReviewQueuePage";
+import HealthReportPage from "@/pages/maintenance/HealthReportPage";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +35,10 @@ function App() {
             <Route path="/entities/:type/:name" element={<EntityDetailPage />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/maintenance" element={<MaintenancePage />} />
+            <Route path="/maintenance/tasks" element={<TasksPage />} />
+            <Route path="/maintenance/tasks/:id" element={<TaskDetailPage />} />
+            <Route path="/maintenance/review" element={<ReviewQueuePage />} />
+            <Route path="/maintenance/health" element={<HealthReportPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>

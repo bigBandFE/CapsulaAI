@@ -29,7 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { CheckCircle, XCircle, Play, GitMerge, Link as LinkIcon, Clock, AlertCircle } from 'lucide-react';
-import { getTasks, approveTask, rejectTask, applyTask, MaintenanceTask } from '@/services/maintenance';
+import { getTasks, approveTask, rejectTask, applyTask, type MaintenanceTask } from '@/services/maintenance';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
