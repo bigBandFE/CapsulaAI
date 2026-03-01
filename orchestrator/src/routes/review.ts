@@ -1,5 +1,5 @@
 // routes/review.ts
-// 维护任务审查路由 - 用于审核知识图谱维护任务
+// Maintenance task review routes - Used for reviewing knowledge graph maintenance tasks
 
 import { Router } from 'express';
 import { maintenanceService } from '../services/maintenance/maintenance.service';
@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 const router = Router();
 
-// Helper to get userId from request (预留认证中间件)
+// Helper to get userId from request (reserved for auth middleware)
 const getUserId = (req: any): string => {
   const userId = req.user?.id || req.headers['x-user-id'];
   if (!userId) {
@@ -29,13 +29,13 @@ const rejectReviewSchema = z.object({
 
 /**
  * GET /api/review/queue
- * 获取待审查队列
+ * Get review queue
  * 
  * Query params:
- * - status: 状态过滤 (PENDING, AWAITING_USER_REVIEW, AUTO_APPROVED)
- * - taskType: 任务类型过滤
- * - limit: 每页数量 (默认 20)
- * - offset: 偏移量 (默认 0)
+ * - status: Status filter (PENDING, AWAITING_USER_REVIEW, AUTO_APPROVED)
+ * - taskType: Task type filter
+ * - limit: Items per page (default 20)
+ * - offset: Offset (default 0)
  */
 router.get('/queue', async (req, res) => {
   try {
@@ -102,7 +102,7 @@ router.get('/queue', async (req, res) => {
 
 /**
  * GET /api/review/:id
- * 获取单个审查项详情
+ * Get single review item details
  */
 router.get('/:id', async (req, res) => {
   try {
@@ -142,10 +142,10 @@ router.get('/:id', async (req, res) => {
 
 /**
  * POST /api/review/:id/approve
- * 批准审查项
+ * Approve review item
  * 
  * Body:
- * - comment: 可选的审核意见
+ * - comment: Optional review comment
  */
 router.post('/:id/approve', async (req, res) => {
   try {
@@ -208,10 +208,10 @@ router.post('/:id/approve', async (req, res) => {
 
 /**
  * POST /api/review/:id/reject
- * 拒绝审查项
+ * Reject review item
  * 
  * Body:
- * - reason: 拒绝原因 (必填)
+ * - reason: Rejection reason (required)
  */
 router.post('/:id/reject', async (req, res) => {
   try {
@@ -274,7 +274,7 @@ router.post('/:id/reject', async (req, res) => {
 
 /**
  * POST /api/review/:id/apply
- * 执行审查项（在批准后执行）
+ * Execute review item (executed after approval)
  */
 router.post('/:id/apply', async (req, res) => {
   try {
@@ -313,13 +313,13 @@ router.post('/:id/apply', async (req, res) => {
 
 /**
  * GET /api/review/stats
- * 获取审查统计
+ * Get review statistics
  */
 router.get('/stats', async (req, res) => {
   try {
     const userId = getUserId(req);
 
-    // 获取各种状态的统计
+    // Get statistics for various statuses
     const [
       totalPending,
       totalAwaitingReview,
@@ -356,14 +356,14 @@ router.get('/stats', async (req, res) => {
       }),
     ]);
 
-    // 按任务类型统计
+    // Statistics by task type
     const taskTypeStats = await prisma.maintenanceTask.groupBy({
       by: ['taskType'],
       where: { userId },
       _count: { id: true },
     });
 
-    // 按置信度分布统计
+    // Statistics by confidence distribution
     const highConfidence = await prisma.maintenanceTask.count({
       where: { userId, confidence: { gte: 0.9 } },
     });
@@ -374,7 +374,7 @@ router.get('/stats', async (req, res) => {
       where: { userId, confidence: { lt: 0.7 } },
     });
 
-    // 今日统计
+    // Today's statistics
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -439,11 +439,11 @@ router.get('/stats', async (req, res) => {
 
 /**
  * POST /api/review/batch-approve
- * 批量批准审查项
+ * Batch approve review items
  * 
  * Body:
- * - ids: 任务ID数组
- * - comment: 可选的审核意见
+ * - ids: Array of task IDs
+ * - comment: Optional review comment
  */
 router.post('/batch-approve', async (req, res) => {
   try {
@@ -501,11 +501,11 @@ router.post('/batch-approve', async (req, res) => {
 
 /**
  * POST /api/review/batch-reject
- * 批量拒绝审查项
+ * Batch reject review items
  * 
  * Body:
- * - ids: 任务ID数组
- * - reason: 拒绝原因 (必填)
+ * - ids: Array of task IDs
+ * - reason: Rejection reason (required)
  */
 router.post('/batch-reject', async (req, res) => {
   try {

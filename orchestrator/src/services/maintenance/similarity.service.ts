@@ -2,28 +2,28 @@ import { distance as levenshteinDistance } from 'fast-levenshtein';
 import { distance as jaroWinklerDistance } from 'jaro-winkler';
 
 /**
- * 相似度权重配置接口
+ * Similarity weights configuration interface
  */
 export interface SimilarityWeights {
-  /** 名称相似度权重 */
+  /** Name similarity weight */
   name: number;
-  /** 别名重叠度权重 */
+  /** Alias overlap weight */
   alias: number;
-  /** 语义相似度权重 */
+  /** Semantic similarity weight */
   semantic: number;
-  /** 上下文相似度权重 */
+  /** Context similarity weight */
   context: number;
-  /** 类型匹配权重 */
+  /** Type match weight */
   type: number;
 }
 
 /**
- * 默认相似度权重配置
- * - name: 0.25 - 名称相似度
- * - alias: 0.15 - 别名重叠度
- * - semantic: 0.35 - 语义相似度
- * - context: 0.15 - 上下文相似度
- * - type: 0.10 - 类型匹配
+ * Default similarity weights configuration
+ * - name: 0.25 - Name similarity
+ * - alias: 0.15 - Alias overlap
+ * - semantic: 0.35 - Semantic similarity
+ * - context: 0.15 - Context similarity
+ * - type: 0.10 - Type match
  */
 export const DEFAULT_WEIGHTS: SimilarityWeights = {
   name: 0.25,
@@ -34,71 +34,71 @@ export const DEFAULT_WEIGHTS: SimilarityWeights = {
 };
 
 /**
- * 实体数据结构接口
+ * Entity data structure interface
  */
 export interface EntityData {
-  /** 实体唯一标识 */
+  /** Entity unique identifier */
   id: string;
-  /** 实体名称 */
+  /** Entity name */
   name: string;
-  /** 实体类型 */
+  /** Entity type */
   type: string;
-  /** 实体别名列表 */
+  /** Entity alias list */
   aliases: string[];
-  /** 语义向量嵌入 */
+  /** Semantic vector embedding */
   embedding?: number[];
-  /** 关联实体ID列表 */
+  /** Related entity ID list */
   relatedEntities: string[];
 }
 
 /**
- * 相似实体对结果接口
+ * Similar entity pair result interface
  */
 export interface SimilarPair {
-  /** 实体A */
+  /** Entity A */
   entityA: EntityData;
-  /** 实体B */
+  /** Entity B */
   entityB: EntityData;
-  /** 综合相似度得分 (0-1) */
+  /** Combined similarity score (0-1) */
   similarity: number;
-  /** 各维度相似度详情 */
+  /** Detailed similarity scores for each dimension */
   details?: SimilarityDetails;
 }
 
 /**
- * 各维度相似度详情
+ * Detailed similarity scores for each dimension
  */
 export interface SimilarityDetails {
-  /** 名称相似度 */
+  /** Name similarity */
   nameSimilarity: number;
-  /** 别名重叠度 */
+  /** Alias overlap */
   aliasOverlap: number;
-  /** 语义相似度 */
+  /** Semantic similarity */
   semanticSimilarity: number;
-  /** 上下文相似度 */
+  /** Context similarity */
   contextSimilarity: number;
-  /** 类型匹配度 */
+  /** Type match score */
   typeMatch: number;
 }
 
 /**
- * 实体相似度计算服务
+ * Entity similarity calculation service
  * 
- * 提供多种相似度计算算法:
- * - 名称相似度: 基于 Levenshtein 距离和 Jaro-Winkler 相似度
- * - 别名重叠度: 基于 Jaccard 系数
- * - 语义相似度: 基于向量余弦相似度
- * - 上下文相似度: 基于共现实体的 Jaccard 系数
- * - 类型匹配: 二元匹配
+ * Provides multiple similarity calculation algorithms:
+ * - Name similarity: Based on Levenshtein distance and Jaro-Winkler similarity
+ * - Alias overlap: Based on Jaccard coefficient
+ * - Semantic similarity: Based on vector cosine similarity
+ * - Context similarity: Based on Jaccard coefficient of co-occurring entities
+ * - Type match: Binary match
  * 
- * 支持可配置的权重组合计算综合相似度
+ * Supports configurable weight combination for calculating combined similarity
  */
 export class SimilarityService {
   private weights: SimilarityWeights;
 
   /**
-   * 创建相似度服务实例
-   * @param weights - 相似度权重配置，默认为 DEFAULT_WEIGHTS
+   * Create a similarity service instance
+   * @param weights - Similarity weights configuration, defaults to DEFAULT_WEIGHTS
    */
   constructor(weights: SimilarityWeights = DEFAULT_WEIGHTS) {
     this.weights = weights;
@@ -106,8 +106,8 @@ export class SimilarityService {
   }
 
   /**
-   * 验证权重配置是否合法
-   * @throws Error 当权重总和不为1时抛出
+   * Validate if the weights configuration is valid
+   * @throws Error when the sum of weights is not equal to 1
    */
   private validateWeights(): void {
     const sum = Object.values(this.weights).reduce((acc, w) => acc + w, 0);
@@ -119,8 +119,8 @@ export class SimilarityService {
   }
 
   /**
-   * 更新权重配置
-   * @param weights - 新的权重配置
+   * Update weights configuration
+   * @param weights - New weights configuration
    */
   updateWeights(weights: SimilarityWeights): void {
     this.weights = weights;
@@ -128,21 +128,21 @@ export class SimilarityService {
   }
 
   /**
-   * 获取当前权重配置
-   * @returns 当前权重配置
+   * Get current weights configuration
+   * @returns Current weights configuration
    */
   getWeights(): SimilarityWeights {
     return { ...this.weights };
   }
 
   /**
-   * 计算两个实体之间的综合相似度
+   * Calculate combined similarity between two entities
    * 
-   * 综合相似度 = Σ(各维度相似度 × 对应权重)
+   * Combined similarity = Σ(dimension similarity × corresponding weight)
    * 
-   * @param entityA - 实体A
-   * @param entityB - 实体B
-   * @returns 综合相似度得分 (0-1)，保留两位小数
+   * @param entityA - Entity A
+   * @param entityB - Entity B
+   * @returns Combined similarity score (0-1), rounded to 2 decimal places
    */
   calculateSimilarity(entityA: EntityData, entityB: EntityData): number {
     const nameSim = this.calculateNameSimilarity(entityA.name, entityB.name);
@@ -168,11 +168,11 @@ export class SimilarityService {
   }
 
   /**
-   * 计算两个实体之间的详细相似度
+   * Calculate detailed similarity between two entities
    * 
-   * @param entityA - 实体A
-   * @param entityB - 实体B
-   * @returns 包含各维度相似度的详细结果
+   * @param entityA - Entity A
+   * @param entityB - Entity B
+   * @returns Detailed result containing similarity scores for each dimension
    */
   calculateSimilarityWithDetails(
     entityA: EntityData,
@@ -212,53 +212,53 @@ export class SimilarityService {
   }
 
   /**
-   * 计算名称相似度
+   * Calculate name similarity
    * 
-   * 算法步骤:
-   * 1. 标准化名称(小写、去除空格和标点)
-   * 2. 精确匹配返回 1.0
-   * 3. 子串匹配返回 0.9
-   * 4. 计算 Levenshtein 相似度: 1 - (编辑距离 / 最大长度)
-   * 5. 计算 Jaro-Winkler 相似度
-   * 6. 返回两者最大值
+   * Algorithm steps:
+   * 1. Normalize names (lowercase, remove spaces and punctuation)
+   * 2. Exact match returns 1.0
+   * 3. Substring match returns 0.9
+   * 4. Calculate Levenshtein similarity: 1 - (edit distance / max length)
+   * 5. Calculate Jaro-Winkler similarity
+   * 6. Return the maximum of both
    * 
-   * @param nameA - 名称A
-   * @param nameB - 名称B
-   * @returns 名称相似度 (0-1)
+   * @param nameA - Name A
+   * @param nameB - Name B
+   * @returns Name similarity (0-1)
    */
   calculateNameSimilarity(nameA: string, nameB: string): number {
     const normA = this.normalize(nameA);
     const normB = this.normalize(nameB);
 
-    // 精确匹配
+    // Exact match
     if (normA === normB) return 1.0;
 
-    // 空字符串检查
+    // Empty string check
     if (normA.length === 0 || normB.length === 0) return 0.0;
 
-    // 子串匹配
+    // Substring match
     if (normA.includes(normB) || normB.includes(normA)) return 0.9;
 
-    // Levenshtein 相似度
+    // Levenshtein similarity
     const maxLen = Math.max(normA.length, normB.length);
     const levDist = levenshteinDistance(normA, normB);
     const levSim = 1 - levDist / maxLen;
 
-    // Jaro-Winkler 相似度 (使用 jaro-winkler 库)
+    // Jaro-Winkler similarity (using jaro-winkler library)
     const jaroSim = jaroWinklerDistance(normA, normB);
 
-    // 返回最大值
+    // Return maximum value
     return Math.max(levSim, jaroSim);
   }
 
   /**
-   * 计算别名重叠度 (Jaccard 系数)
+   * Calculate alias overlap (Jaccard coefficient)
    * 
    * Jaccard(A, B) = |A ∩ B| / |A ∪ B|
    * 
-   * @param aliasesA - 实体A的别名列表
-   * @param aliasesB - 实体B的别名列表
-   * @returns 别名重叠度 (0-1)
+   * @param aliasesA - Entity A's alias list
+   * @param aliasesB - Entity B's alias list
+   * @returns Alias overlap (0-1)
    */
   calculateAliasOverlap(aliasesA: string[], aliasesB: string[]): number {
     const setA = new Set(aliasesA.map((a) => this.normalize(a)));
@@ -273,13 +273,13 @@ export class SimilarityService {
   }
 
   /**
-   * 计算语义相似度 (向量余弦相似度)
+   * Calculate semantic similarity (vector cosine similarity)
    * 
    * cos(θ) = (A · B) / (||A|| × ||B||)
    * 
-   * @param embeddingA - 实体A的向量嵌入
-   * @param embeddingB - 实体B的向量嵌入
-   * @returns 语义相似度 (0-1)，无嵌入时返回 0
+   * @param embeddingA - Entity A's vector embedding
+   * @param embeddingB - Entity B's vector embedding
+   * @returns Semantic similarity (0-1), returns 0 when no embedding
    */
   calculateSemanticSimilarity(
     embeddingA?: number[],
@@ -301,23 +301,23 @@ export class SimilarityService {
 
     if (normA === 0 || normB === 0) return 0.0;
 
-    // 计算余弦相似度
-    // 注意：假设向量已经归一化，结果在 [0, 1] 范围内
-    // 如果向量未归一化，结果可能在 [-1, 1]，需要映射到 [0, 1]
+    // Calculate cosine similarity
+    // Note: Assumes vectors are already normalized, result in [0, 1] range
+    // If vectors are not normalized, result may be in [-1, 1], needs mapping to [0, 1]
     const similarity = dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     
-    // 将 [-1, 1] 映射到 [0, 1]，确保结果非负
+    // Map [-1, 1] to [0, 1], ensure result is non-negative
     return Math.max(0, Math.min(1, (similarity + 1) / 2));
   }
 
   /**
-   * 计算上下文相似度 (共现实体的 Jaccard 系数)
+   * Calculate context similarity (Jaccard coefficient of co-occurring entities)
    * 
-   * 基于两个实体共有的关联实体计算相似度
+   * Calculates similarity based on shared related entities between two entities
    * 
-   * @param relatedA - 实体A的关联实体ID列表
-   * @param relatedB - 实体B的关联实体ID列表
-   * @returns 上下文相似度 (0-1)
+   * @param relatedA - Entity A's related entity ID list
+   * @param relatedB - Entity B's related entity ID list
+   * @returns Context similarity (0-1)
    */
   calculateContextSimilarity(
     relatedA: string[],
@@ -335,11 +335,11 @@ export class SimilarityService {
   }
 
   /**
-   * 计算 Jaccard 相似度系数
+   * Calculate Jaccard similarity coefficient
    * 
-   * @param setA - 集合A
-   * @param setB - 集合B
-   * @returns Jaccard 系数 (0-1)
+   * @param setA - Set A
+   * @param setB - Set B
+   * @returns Jaccard coefficient (0-1)
    */
   calculateJaccardSimilarity<T>(setA: Set<T>, setB: Set<T>): number {
     if (setA.size === 0 && setB.size === 0) return 1.0;
@@ -351,63 +351,63 @@ export class SimilarityService {
   }
 
   /**
-   * 标准化字符串用于比较
+   * Normalize string for comparison
    * 
-   * 转换步骤:
-   * 1. 转换为小写
-   * 2. 去除所有空格
-   * 3. 去除所有标点符号
-   * 4. 去除首尾空白
+   * Transformation steps:
+   * 1. Convert to lowercase
+   * 2. Remove all spaces
+   * 3. Remove all punctuation
+   * 4. Trim leading and trailing whitespace
    * 
-   * @param str - 原始字符串
-   * @returns 标准化后的字符串
+   * @param str - Original string
+   * @returns Normalized string
    */
   normalize(str: string): string {
     return str
       .toLowerCase()
-      .replace(/[\s!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '') // 去除空格和标点符号
+      .replace(/[\s!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '') // Remove spaces and punctuation
       .trim();
   }
 
   /**
-   * 计算 Levenshtein 距离
+   * Calculate Levenshtein distance
    * 
-   * 使用 fast-levenshtein 库计算两个字符串的编辑距离
+   * Uses fast-levenshtein library to calculate edit distance between two strings
    * 
-   * @param strA - 字符串A
-   * @param strB - 字符串B
-   * @returns 编辑距离
+   * @param strA - String A
+   * @param strB - String B
+   * @returns Edit distance
    */
   calculateLevenshteinDistance(strA: string, strB: string): number {
     return levenshteinDistance(strA, strB);
   }
 
   /**
-   * 计算 Jaro-Winkler 相似度
+   * Calculate Jaro-Winkler similarity
    * 
-   * 使用 jaro-winkler 库计算相似度
-   * 对前缀匹配给予额外权重，适合名称匹配
+   * Uses jaro-winkler library to calculate similarity
+   * Gives extra weight to prefix matching, suitable for name matching
    * 
-   * 注意：jaro-winkler 库的 distance 函数返回的是相似度 (0-1)，
-   * 而非距离。值越大表示越相似。
+   * Note: The distance function from jaro-winkler library returns similarity (0-1),
+   * not distance. Higher values indicate greater similarity.
    * 
-   * @param strA - 字符串A
-   * @param strB - 字符串B
-   * @returns Jaro-Winkler 相似度 (0-1)
+   * @param strA - String A
+   * @param strB - String B
+   * @returns Jaro-Winkler similarity (0-1)
    */
   calculateJaroWinklerSimilarity(strA: string, strB: string): number {
     return jaroWinklerDistance(strA, strB);
   }
 
   /**
-   * 从实体列表中查找相似实体对
+   * Find similar entity pairs from entity list
    * 
-   * 使用 O(n²) 算法比较所有实体对
+   * Uses O(n²) algorithm to compare all entity pairs
    * 
-   * @param entities - 实体列表
-   * @param threshold - 相似度阈值 (默认 0.7)
-   * @param includeDetails - 是否包含详细相似度信息
-   * @returns 相似实体对列表，按相似度降序排列
+   * @param entities - Entity list
+   * @param threshold - Similarity threshold (default 0.7)
+   * @param includeDetails - Whether to include detailed similarity information
+   * @returns List of similar entity pairs, sorted by similarity in descending order
    */
   async findSimilarPairs(
     entities: EntityData[],
@@ -432,20 +432,20 @@ export class SimilarityService {
       }
     }
 
-    // 按相似度降序排列
+    // Sort by similarity in descending order
     return pairs.sort((a, b) => b.similarity - a.similarity);
   }
 
   /**
-   * 批量处理相似度计算
+   * Batch process similarity calculation
    * 
-   * 使用滑动窗口避免 O(n²) 内存占用
-   * 适合处理大规模实体列表
+   * Uses sliding window to avoid O(n²) memory usage
+   * Suitable for processing large entity lists
    * 
-   * @param entities - 实体列表
-   * @param callback - 每批结果回调函数
-   * @param batchSize - 批处理大小 (默认 100)
-   * @param threshold - 相似度阈值 (默认 0.7)
+   * @param entities - Entity list
+   * @param callback - Callback function for each batch of results
+   * @param batchSize - Batch processing size (default 100)
+   * @param threshold - Similarity threshold (default 0.7)
    */
   async processSimilarityBatch(
     entities: EntityData[],
@@ -453,11 +453,11 @@ export class SimilarityService {
     batchSize = 100,
     threshold = 0.7
   ): Promise<void> {
-    // 使用滑动窗口避免 O(n²) 内存占用
+    // Use sliding window to avoid O(n²) memory usage
     for (let i = 0; i < entities.length; i += batchSize) {
       const batch = entities.slice(i, i + batchSize);
 
-      // 当前批次内部比较
+      // Compare within current batch
       const internalPairs = await this.calculateSimilarityBatch(
         batch,
         batch,
@@ -468,7 +468,7 @@ export class SimilarityService {
         await callback(internalPairs);
       }
 
-      // 与后续批次比较
+      // Compare with subsequent batches
       for (let j = i + batchSize; j < entities.length; j += batchSize) {
         const compareBatch = entities.slice(j, j + batchSize);
         const pairs = await this.calculateSimilarityBatch(
@@ -485,13 +485,13 @@ export class SimilarityService {
   }
 
   /**
-   * 计算两个批次之间的相似度
+   * Calculate similarity between two batches
    * 
-   * @param batchA - 批次A
-   * @param batchB - 批次B
-   * @param threshold - 相似度阈值
-   * @param skipSameIndex - 是否跳过相同索引(用于同一批次内部比较)
-   * @returns 相似实体对列表
+   * @param batchA - Batch A
+   * @param batchB - Batch B
+   * @param threshold - Similarity threshold
+   * @param skipSameIndex - Whether to skip same index (for internal batch comparison)
+   * @returns List of similar entity pairs
    */
   private async calculateSimilarityBatch(
     batchA: EntityData[],
@@ -508,7 +508,7 @@ export class SimilarityService {
       for (let j = startJ; j < batchB.length; j++) {
         const entityB = batchB[j];
 
-        // 如果是同一批次且相同实体，跳过
+        // Skip if same entity in same batch
         if (skipSameIndex && entityA.id === entityB.id) continue;
 
         const similarity = this.calculateSimilarity(entityA, entityB);
@@ -522,13 +522,13 @@ export class SimilarityService {
   }
 
   /**
-   * 查找与给定实体最相似的实体
+   * Find entities most similar to the given entity
    * 
-   * @param target - 目标实体
-   * @param candidates - 候选实体列表
-   * @param topK - 返回最相似的前K个 (默认 5)
-   * @param threshold - 相似度阈值 (默认 0.5)
-   * @returns 最相似的实体对列表
+   * @param target - Target entity
+   * @param candidates - Candidate entity list
+   * @param topK - Return top K most similar (default 5)
+   * @param threshold - Similarity threshold (default 0.5)
+   * @returns List of most similar entity pairs
    */
   async findMostSimilar(
     target: EntityData,
@@ -539,7 +539,7 @@ export class SimilarityService {
     const pairs: SimilarPair[] = [];
 
     for (const candidate of candidates) {
-      // 跳过自身
+      // Skip self
       if (target.id === candidate.id) continue;
 
       const similarity = this.calculateSimilarity(target, candidate);
@@ -552,7 +552,7 @@ export class SimilarityService {
       }
     }
 
-    // 按相似度降序排列并取前K个
+    // Sort by similarity in descending order and take top K
     return pairs
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, topK);
@@ -560,6 +560,6 @@ export class SimilarityService {
 }
 
 /**
- * 默认相似度服务实例
+ * Default similarity service instance
  */
 export const similarityService = new SimilarityService();

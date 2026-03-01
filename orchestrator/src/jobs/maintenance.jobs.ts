@@ -4,8 +4,8 @@ import { mergeService } from '../services/maintenance/merge.service';
 import { MaintenanceStatus } from '@prisma/client';
 
 /**
- * 任务执行状态跟踪
- * 用于防止任务重叠执行
+ * Task execution state tracking
+ * Used to prevent task overlapping execution
  */
 interface TaskExecutionState {
   isRunning: boolean;
@@ -18,12 +18,12 @@ interface TaskExecutionState {
 }
 
 /**
- * 任务配置常量
+ * Task configuration constants
  */
-const JOB_TIMEOUT_MS = 30 * 60 * 1000; // 30分钟超时
+const JOB_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes timeout
 
 /**
- * 定时任务配置接口
+ * Cron job configuration interface
  */
 interface CronJobConfig {
   name: string;
@@ -33,43 +33,43 @@ interface CronJobConfig {
 }
 
 /**
- * 定时任务调度器
+ * Cron job scheduler
  *
- * 管理 CapsulaAI 的维护相关定时任务:
- * 1. 每日扫描任务 (daily-scan) - 每天凌晨 2:00
- * 2. 自动批准任务 (auto-approve) - 每小时
- * 3. 过期任务清理 (cleanup) - 每周日凌晨 3:00
- * 4. 健康报告生成 (health-report) - 每天上午 9:00
+ * Manages CapsulaAI's maintenance-related scheduled tasks:
+ * 1. Daily scan task (daily-scan) - Every day at 2:00 AM
+ * 2. Auto-approve task (auto-approve) - Every hour
+ * 3. Expired task cleanup (cleanup) - Every Sunday at 3:00 AM
+ * 4. Health report generation (health-report) - Every day at 9:00 AM
  */
 export class MaintenanceJobScheduler {
   private jobs: Map<string, cron.ScheduledTask> = new Map();
   private executionStates: Map<string, TaskExecutionState> = new Map();
   private userId: string;
 
-  // 任务配置
+  // Job configurations
   private readonly jobConfigs: CronJobConfig[] = [
     {
       name: 'daily-scan',
-      schedule: '0 2 * * *', // 每天凌晨 2:00
-      description: '每日扫描任务: 扫描重复实体、发现新关系、检测过时实体、检测孤立节点',
+      schedule: '0 2 * * *', // Every day at 2:00 AM
+      description: 'Daily scan task: Scan for duplicate entities, discover new relationships, detect stale entities, detect orphan nodes',
       enabled: true,
     },
     {
       name: 'auto-approve',
-      schedule: '0 * * * *', // 每小时
-      description: '自动批准任务: 自动批准置信度 >= 0.95 的任务并执行',
+      schedule: '0 * * * *', // Every hour
+      description: 'Auto-approve task: Automatically approve and execute tasks with confidence >= 0.95',
       enabled: true,
     },
     {
       name: 'cleanup',
-      schedule: '0 3 * * 0', // 每周日凌晨 3:00
-      description: '过期任务清理: 清理已拒绝超过 30 天的任务和已回滚超过 7 天的任务',
+      schedule: '0 3 * * 0', // Every Sunday at 3:00 AM
+      description: 'Expired task cleanup: Clean up tasks rejected for more than 30 days and tasks reverted for more than 7 days',
       enabled: true,
     },
     {
       name: 'health-report',
-      schedule: '0 9 * * *', // 每天上午 9:00
-      description: '健康报告生成: 生成知识图谱健康报告',
+      schedule: '0 9 * * *', // Every day at 9:00 AM
+      description: 'Health report generation: Generate knowledge graph health report',
       enabled: true,
     },
   ];
@@ -80,7 +80,7 @@ export class MaintenanceJobScheduler {
   }
 
   /**
-   * 初始化任务执行状态
+   * Initialize task execution states
    */
   private initializeExecutionStates(): void {
     for (const config of this.jobConfigs) {
@@ -97,10 +97,10 @@ export class MaintenanceJobScheduler {
   }
 
   /**
-   * 启动所有定时任务
+   * Start all scheduled tasks
    */
   startAll(): void {
-    console.log('[MaintenanceJobScheduler] 启动所有定时任务...');
+    console.log('[MaintenanceJobScheduler] Starting all scheduled tasks...');
 
     for (const config of this.jobConfigs) {
       if (config.enabled) {
@@ -108,33 +108,33 @@ export class MaintenanceJobScheduler {
       }
     }
 
-    console.log('[MaintenanceJobScheduler] 所有定时任务已启动');
+    console.log('[MaintenanceJobScheduler] All scheduled tasks started');
   }
 
   /**
-   * 停止所有定时任务
+   * Stop all scheduled tasks
    */
   stopAll(): void {
-    console.log('[MaintenanceJobScheduler] 停止所有定时任务...');
+    console.log('[MaintenanceJobScheduler] Stopping all scheduled tasks...');
 
     for (const [name, job] of Array.from(this.jobs.entries())) {
       job.stop();
-      console.log(`[MaintenanceJobScheduler] 任务 "${name}" 已停止`);
+      console.log(`[MaintenanceJobScheduler] Task "${name}" stopped`);
     }
 
     this.jobs.clear();
 
-    // 重置所有执行状态
+    // Reset all execution states
     for (const [name, state] of Array.from(this.executionStates.entries())) {
       state.isRunning = false;
-      console.log(`[MaintenanceJobScheduler] 任务 "${name}" 执行状态已重置`);
+      console.log(`[MaintenanceJobScheduler] Task "${name}" execution state reset`);
     }
 
-    console.log('[MaintenanceJobScheduler] 所有定时任务已停止');
+    console.log('[MaintenanceJobScheduler] All scheduled tasks stopped');
   }
 
   /**
-   * 启动单个任务
+   * Start a single task
    */
   private startJob(config: CronJobConfig): void {
     const existingJob = this.jobs.get(config.name);
@@ -154,23 +154,23 @@ export class MaintenanceJobScheduler {
     );
 
     this.jobs.set(config.name, task);
-    console.log(`[MaintenanceJobScheduler] 任务 "${config.name}" 已启动 (${config.schedule}): ${config.description}`);
+    console.log(`[MaintenanceJobScheduler] Task "${config.name}" started (${config.schedule}): ${config.description}`);
   }
 
   /**
-   * 执行任务（带防重叠保护和超时控制）
+   * Execute task (with overlap protection and timeout control)
    */
   private async executeJob(jobName: string): Promise<void> {
     const state = this.executionStates.get(jobName);
 
     if (!state) {
-      console.error(`[MaintenanceJobScheduler] 未知任务: ${jobName}`);
+      console.error(`[MaintenanceJobScheduler] Unknown task: ${jobName}`);
       return;
     }
 
-    // 检查是否正在运行
+    // Check if already running
     if (state.isRunning) {
-      console.warn(`[MaintenanceJobScheduler] 任务 "${jobName}" 正在运行中，跳过本次执行`);
+      console.warn(`[MaintenanceJobScheduler] Task "${jobName}" is already running, skipping this execution`);
       return;
     }
 
@@ -179,17 +179,17 @@ export class MaintenanceJobScheduler {
     state.lastError = null;
     state.totalRuns++;
 
-    console.log(`[MaintenanceJobScheduler] 任务 "${jobName}" 开始执行`);
+    console.log(`[MaintenanceJobScheduler] Task "${jobName}" started`);
 
-    // 创建超时 Promise
+    // Create timeout Promise
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
-        reject(new Error(`任务执行超时 (${JOB_TIMEOUT_MS}ms)`));
+        reject(new Error(`Task execution timeout (${JOB_TIMEOUT_MS}ms)`));
       }, JOB_TIMEOUT_MS);
     });
 
     try {
-      // 执行任务并设置超时
+      // Execute task with timeout
       await Promise.race([
         this.executeJobLogic(jobName),
         timeoutPromise,
@@ -198,18 +198,18 @@ export class MaintenanceJobScheduler {
       state.lastRunAt = new Date();
       state.lastRunDuration = Date.now() - startTime;
       state.successRuns++;
-      console.log(`[MaintenanceJobScheduler] 任务 "${jobName}" 执行完成，耗时 ${state.lastRunDuration}ms`);
+      console.log(`[MaintenanceJobScheduler] Task "${jobName}" completed, took ${state.lastRunDuration}ms`);
     } catch (error) {
       state.lastError = (error as Error).message;
       state.failedRuns++;
-      console.error(`[MaintenanceJobScheduler] 任务 "${jobName}" 执行失败:`, error);
+      console.error(`[MaintenanceJobScheduler] Task "${jobName}" execution failed:`, error);
     } finally {
       state.isRunning = false;
     }
   }
 
   /**
-   * 执行任务逻辑
+   * Execute task logic
    */
   private async executeJobLogic(jobName: string): Promise<void> {
     switch (jobName) {
@@ -226,86 +226,86 @@ export class MaintenanceJobScheduler {
         await this.runHealthReport();
         break;
       default:
-        throw new Error(`[MaintenanceJobScheduler] 未知任务类型: ${jobName}`);
+        throw new Error(`[MaintenanceJobScheduler] Unknown task type: ${jobName}`);
     }
   }
 
   /**
-   * 每日扫描任务
-   * - 扫描重复实体
-   * - 发现新关系
-   * - 检测过时实体
-   * - 检测孤立节点
+   * Daily scan task
+   * - Scan for duplicate entities
+   * - Discover new relationships
+   * - Detect stale entities
+   * - Detect orphan nodes
    */
   private async runDailyScan(): Promise<void> {
-    console.log('[MaintenanceJobScheduler] 开始每日扫描...');
+    console.log('[MaintenanceJobScheduler] Starting daily scan...');
 
     try {
-      // 1. 扫描重复实体
-      console.log('[MaintenanceJobScheduler] 扫描重复实体...');
+      // 1. Scan for duplicate entities
+      console.log('[MaintenanceJobScheduler] Scanning for duplicate entities...');
       const duplicateTasks = await maintenanceService.scanForDuplicates(this.userId);
-      console.log(`[MaintenanceJobScheduler] 发现 ${duplicateTasks.length} 个潜在重复实体`);
+      console.log(`[MaintenanceJobScheduler] Found ${duplicateTasks.length} potential duplicate entities`);
 
-      // 2. 发现新关系
-      console.log('[MaintenanceJobScheduler] 发现新关系...');
+      // 2. Discover new relationships
+      console.log('[MaintenanceJobScheduler] Discovering new relationships...');
       const relationTasks = await maintenanceService.discoverRelations(this.userId);
-      console.log(`[MaintenanceJobScheduler] 发现 ${relationTasks.length} 个新关系`);
+      console.log(`[MaintenanceJobScheduler] Found ${relationTasks.length} new relationships`);
 
-      // 3. 检测过时实体
-      console.log('[MaintenanceJobScheduler] 检测过时实体...');
+      // 3. Detect stale entities
+      console.log('[MaintenanceJobScheduler] Detecting stale entities...');
       const staleTasks = await maintenanceService.detectStaleEntities(this.userId);
-      console.log(`[MaintenanceJobScheduler] 发现 ${staleTasks.length} 个过时实体`);
+      console.log(`[MaintenanceJobScheduler] Found ${staleTasks.length} stale entities`);
 
-      // 4. 检测孤立节点
-      console.log('[MaintenanceJobScheduler] 检测孤立节点...');
+      // 4. Detect orphan nodes
+      console.log('[MaintenanceJobScheduler] Detecting orphan nodes...');
       const orphanTasks = await maintenanceService.detectOrphanEntities(this.userId);
-      console.log(`[MaintenanceJobScheduler] 发现 ${orphanTasks.length} 个孤立节点`);
+      console.log(`[MaintenanceJobScheduler] Found ${orphanTasks.length} orphan nodes`);
 
-      // 5. 标签优化
-      console.log('[MaintenanceJobScheduler] 标签优化...');
+      // 5. Tag optimization
+      console.log('[MaintenanceJobScheduler] Tag optimization...');
       const tagTasks = await maintenanceService.optimizeTags(this.userId);
-      console.log(`[MaintenanceJobScheduler] 发现 ${tagTasks.length} 个标签优化机会`);
+      console.log(`[MaintenanceJobScheduler] Found ${tagTasks.length} tag optimization opportunities`);
 
       const totalTasks = duplicateTasks.length + relationTasks.length + staleTasks.length + orphanTasks.length + tagTasks.length;
-      console.log(`[MaintenanceJobScheduler] 每日扫描完成，共创建 ${totalTasks} 个维护任务`);
+      console.log(`[MaintenanceJobScheduler] Daily scan completed, created ${totalTasks} maintenance tasks`);
     } catch (error) {
-      console.error('[MaintenanceJobScheduler] 每日扫描失败:', error);
+      console.error('[MaintenanceJobScheduler] Daily scan failed:', error);
       throw error;
     }
   }
 
   /**
-   * 自动批准任务
-   * - 自动批准置信度 >= 0.95 的任务
-   * - 自动执行已批准的任务
+   * Auto-approve task
+   * - Automatically approve tasks with confidence >= 0.95
+   * - Automatically execute approved tasks
    */
   private async runAutoApprove(): Promise<void> {
-    console.log('[MaintenanceJobScheduler] 开始自动批准任务...');
+    console.log('[MaintenanceJobScheduler] Starting auto-approve task...');
 
     try {
-      // 获取所有等待审核的任务
+      // Get all pending review tasks
       const { tasks: pendingTasks } = await maintenanceService.getTasks(this.userId, {
         status: MaintenanceStatus.AWAITING_USER_REVIEW,
         limit: 100,
       });
 
-      // 筛选高置信度任务 (>= 0.95)
+      // Filter high confidence tasks (>= 0.95)
       const highConfidenceTasks = pendingTasks.filter(task => task.confidence >= 0.95);
-      console.log(`[MaintenanceJobScheduler] 发现 ${highConfidenceTasks.length} 个高置信度任务`);
+      console.log(`[MaintenanceJobScheduler] Found ${highConfidenceTasks.length} high confidence tasks`);
 
-      // 自动批准高置信度任务
+      // Auto-approve high confidence tasks
       const approvedTasks: string[] = [];
       for (const task of highConfidenceTasks) {
         try {
-          await maintenanceService.approveTask(this.userId, task.id, '系统自动批准 (置信度 >= 0.95)');
+          await maintenanceService.approveTask(this.userId, task.id, 'System auto-approved (confidence >= 0.95)');
           approvedTasks.push(task.id);
-          console.log(`[MaintenanceJobScheduler] 任务 ${task.id} 已自动批准`);
+          console.log(`[MaintenanceJobScheduler] Task ${task.id} auto-approved`);
         } catch (error) {
-          console.error(`[MaintenanceJobScheduler] 批准任务 ${task.id} 失败:`, error);
+          console.error(`[MaintenanceJobScheduler] Failed to approve task ${task.id}:`, error);
         }
       }
 
-      // 自动执行已批准的任务（包括 AUTO_APPROVED 和刚批准的 APPROVED）
+      // Auto-execute approved tasks (including AUTO_APPROVED and newly approved APPROVED)
       const { tasks: approvedTasksToExecute } = await maintenanceService.getTasks(this.userId, {
         status: MaintenanceStatus.AUTO_APPROVED,
         limit: 100,
@@ -317,40 +317,40 @@ export class MaintenanceJobScheduler {
           const result = await maintenanceService.applyTask(this.userId, task.id);
           if (result.success) {
             executedTasks.push(task.id);
-            console.log(`[MaintenanceJobScheduler] 任务 ${task.id} 已自动执行`);
+            console.log(`[MaintenanceJobScheduler] Task ${task.id} auto-executed`);
           } else {
-            console.error(`[MaintenanceJobScheduler] 执行任务 ${task.id} 失败:`, result.error);
+            console.error(`[MaintenanceJobScheduler] Failed to execute task ${task.id}:`, result.error);
           }
         } catch (error) {
-          console.error(`[MaintenanceJobScheduler] 执行任务 ${task.id} 失败:`, error);
+          console.error(`[MaintenanceJobScheduler] Failed to execute task ${task.id}:`, error);
         }
       }
 
-      console.log(`[MaintenanceJobScheduler] 自动批准完成: 批准 ${approvedTasks.length} 个任务，执行 ${executedTasks.length} 个任务`);
+      console.log(`[MaintenanceJobScheduler] Auto-approve completed: approved ${approvedTasks.length} tasks, executed ${executedTasks.length} tasks`);
     } catch (error) {
-      console.error('[MaintenanceJobScheduler] 自动批准任务失败:', error);
+      console.error('[MaintenanceJobScheduler] Auto-approve task failed:', error);
       throw error;
     }
   }
 
   /**
-   * 过期任务清理
-   * - 清理已拒绝超过 30 天的任务
-   * - 清理已回滚超过 7 天的任务
+   * Expired task cleanup
+   * - Clean up tasks rejected for more than 30 days
+   * - Clean up tasks reverted for more than 7 days
    * 
-   * 注意: 当前版本仅记录日志，不实际删除任务
-   * 如需启用删除功能，需要先在 maintenanceService 中添加 deleteTask 方法
+   * Note: Current version only logs, does not actually delete tasks
+   * To enable deletion, need to add deleteTask method in maintenanceService first
    */
   private async runCleanup(): Promise<void> {
-    console.log('[MaintenanceJobScheduler] 开始过期任务清理检查...');
-    console.log('[MaintenanceJobScheduler] 注意: 当前仅记录日志，不实际删除任务');
+    console.log('[MaintenanceJobScheduler] Starting expired task cleanup check...');
+    console.log('[MaintenanceJobScheduler] Note: Currently only logs, does not actually delete tasks');
 
     try {
       const now = new Date();
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      // 获取所有已拒绝和已回滚的任务
+      // Get all rejected and reverted tasks
       const { tasks: rejectedTasks } = await maintenanceService.getTasks(this.userId, {
         status: MaintenanceStatus.REJECTED,
         limit: 1000,
@@ -361,73 +361,73 @@ export class MaintenanceJobScheduler {
         limit: 1000,
       });
 
-      // 筛选需要清理的任务
+      // Filter tasks to clean up
       const tasksToDelete = [
         ...rejectedTasks.filter(task => new Date(task.updatedAt) < thirtyDaysAgo),
         ...revertedTasks.filter(task => new Date(task.updatedAt) < sevenDaysAgo),
       ];
 
-      console.log(`[MaintenanceJobScheduler] 发现 ${tasksToDelete.length} 个过期任务需要清理`);
+      console.log(`[MaintenanceJobScheduler] Found ${tasksToDelete.length} expired tasks to clean up`);
 
-      // 记录需要清理的任务（实际删除功能暂未启用）
+      // Log tasks to clean up (actual deletion not yet enabled)
       for (const task of tasksToDelete) {
         const daysOld = Math.floor((now.getTime() - new Date(task.updatedAt).getTime()) / (24 * 60 * 60 * 1000));
-        console.log(`[MaintenanceJobScheduler] [待清理] 任务 ${task.id}: 类型=${task.taskType}, 状态=${task.status}, 已过期 ${daysOld} 天`);
+        console.log(`[MaintenanceJobScheduler] [To clean up] Task ${task.id}: type=${task.taskType}, status=${task.status}, expired ${daysOld} days`);
       }
 
-      console.log(`[MaintenanceJobScheduler] 过期任务清理检查完成，共标记 ${tasksToDelete.length} 个任务待清理（未实际删除）`);
+      console.log(`[MaintenanceJobScheduler] Expired task cleanup check completed, marked ${tasksToDelete.length} tasks for cleanup (not actually deleted)`);
     } catch (error) {
-      console.error('[MaintenanceJobScheduler] 过期任务清理检查失败:', error);
+      console.error('[MaintenanceJobScheduler] Expired task cleanup check failed:', error);
       throw error;
     }
   }
 
   /**
-   * 健康报告生成
-   * - 生成知识图谱健康报告
-   * - 发送通知（预留）
+   * Health report generation
+   * - Generate knowledge graph health report
+   * - Send notifications (reserved)
    */
   private async runHealthReport(): Promise<void> {
-    console.log('[MaintenanceJobScheduler] 开始生成健康报告...');
+    console.log('[MaintenanceJobScheduler] Starting health report generation...');
 
     try {
       const report = await maintenanceService.getHealthReport(this.userId);
 
-      console.log('[MaintenanceJobScheduler] ===== 知识图谱健康报告 =====');
-      console.log(`[MaintenanceJobScheduler] 健康评分: ${report.score}/100`);
-      console.log(`[MaintenanceJobScheduler] 总实体数: ${report.totalEntities}`);
-      console.log(`[MaintenanceJobScheduler] 总关系数: ${report.totalRelations}`);
-      console.log(`[MaintenanceJobScheduler] 孤立实体数: ${report.orphanEntities}`);
-      console.log(`[MaintenanceJobScheduler] 潜在重复数: ${report.potentialDuplicates}`);
-      console.log(`[MaintenanceJobScheduler] 过时实体数: ${report.staleEntities}`);
-      console.log(`[MaintenanceJobScheduler] 损坏关系数: ${report.brokenRelations}`);
+      console.log('[MaintenanceJobScheduler] ===== Knowledge Graph Health Report =====');
+      console.log(`[MaintenanceJobScheduler] Health score: ${report.score}/100`);
+      console.log(`[MaintenanceJobScheduler] Total entities: ${report.totalEntities}`);
+      console.log(`[MaintenanceJobScheduler] Total relations: ${report.totalRelations}`);
+      console.log(`[MaintenanceJobScheduler] Orphan entities: ${report.orphanEntities}`);
+      console.log(`[MaintenanceJobScheduler] Potential duplicates: ${report.potentialDuplicates}`);
+      console.log(`[MaintenanceJobScheduler] Stale entities: ${report.staleEntities}`);
+      console.log(`[MaintenanceJobScheduler] Broken relations: ${report.brokenRelations}`);
       console.log('[MaintenanceJobScheduler] =============================');
 
-      // TODO: 发送通知（预留）
-      // 可以集成邮件、Slack、Webhook 等通知方式
+      // TODO: Send notifications (reserved)
+      // Can integrate email, Slack, Webhook, etc.
       if (report.score < 80) {
-        console.warn(`[MaintenanceJobScheduler] 健康评分较低 (${report.score})，建议进行维护`);
+        console.warn(`[MaintenanceJobScheduler] Health score is low (${report.score}), maintenance recommended`);
         // await this.sendNotification('health-alert', report);
       }
 
-      console.log('[MaintenanceJobScheduler] 健康报告生成完成');
+      console.log('[MaintenanceJobScheduler] Health report generation completed');
     } catch (error) {
-      console.error('[MaintenanceJobScheduler] 健康报告生成失败:', error);
+      console.error('[MaintenanceJobScheduler] Health report generation failed:', error);
       throw error;
     }
   }
 
   /**
-   * 手动触发任务
-   * @param jobName 任务名称
+   * Manually trigger a task
+   * @param jobName Task name
    */
   async triggerJob(jobName: string): Promise<void> {
-    console.log(`[MaintenanceJobScheduler] 手动触发任务: ${jobName}`);
+    console.log(`[MaintenanceJobScheduler] Manually triggering task: ${jobName}`);
     await this.executeJob(jobName);
   }
 
   /**
-   * 获取任务状态
+   * Get task status
    */
   getJobStatus(): Array<{
     name: string;
@@ -467,12 +467,12 @@ export class MaintenanceJobScheduler {
   }
 
   /**
-   * 启用/禁用任务
+   * Enable/disable task
    */
   setJobEnabled(jobName: string, enabled: boolean): void {
     const config = this.jobConfigs.find(c => c.name === jobName);
     if (!config) {
-      console.error(`[MaintenanceJobScheduler] 未知任务: ${jobName}`);
+      console.error(`[MaintenanceJobScheduler] Unknown task: ${jobName}`);
       return;
     }
 
@@ -486,50 +486,50 @@ export class MaintenanceJobScheduler {
         job.stop();
         this.jobs.delete(jobName);
         
-        // 重置执行状态
+        // Reset execution state
         const state = this.executionStates.get(jobName);
         if (state) {
           state.isRunning = false;
         }
         
-        console.log(`[MaintenanceJobScheduler] 任务 "${jobName}" 已禁用`);
+        console.log(`[MaintenanceJobScheduler] Task "${jobName}" disabled`);
       }
     }
   }
 }
 
-// 默认调度器实例
+// Default scheduler instance
 let defaultScheduler: MaintenanceJobScheduler | null = null;
 let initPromise: Promise<MaintenanceJobScheduler> | null = null;
 
 /**
- * 初始化并启动定时任务调度器（线程安全）
+ * Initialize and start scheduled task scheduler (thread-safe)
  */
 export async function initializeMaintenanceJobs(userId: string = 'system'): Promise<MaintenanceJobScheduler> {
-  // 如果正在初始化，返回现有的 Promise
+  // If initialization is in progress, return existing Promise
   if (initPromise) {
-    console.log('[MaintenanceJobScheduler] 初始化正在进行中，等待完成...');
+    console.log('[MaintenanceJobScheduler] Initialization in progress, waiting for completion...');
     return initPromise;
   }
 
-  // 创建新的初始化 Promise
+  // Create new initialization Promise
   initPromise = (async () => {
     try {
       if (defaultScheduler) {
-        console.log('[MaintenanceJobScheduler] 调度器已存在，停止旧实例');
+        console.log('[MaintenanceJobScheduler] Scheduler already exists, stopping old instance');
         defaultScheduler.stopAll();
       }
 
       defaultScheduler = new MaintenanceJobScheduler(userId);
       defaultScheduler.startAll();
 
-      console.log('[MaintenanceJobScheduler] 调度器初始化完成');
+      console.log('[MaintenanceJobScheduler] Scheduler initialization completed');
       return defaultScheduler;
     } catch (error) {
-      console.error('[MaintenanceJobScheduler] 初始化失败:', error);
+      console.error('[MaintenanceJobScheduler] Initialization failed:', error);
       throw error;
     } finally {
-      // 重置初始化 Promise，允许后续重新初始化
+      // Reset initialization Promise to allow subsequent re-initialization
       initPromise = null;
     }
   })();
@@ -538,14 +538,14 @@ export async function initializeMaintenanceJobs(userId: string = 'system'): Prom
 }
 
 /**
- * 获取默认调度器实例
+ * Get default scheduler instance
  */
 export function getMaintenanceJobScheduler(): MaintenanceJobScheduler | null {
   return defaultScheduler;
 }
 
 /**
- * 停止定时任务调度器
+ * Stop scheduled task scheduler
  */
 export function stopMaintenanceJobs(): void {
   if (defaultScheduler) {
@@ -555,17 +555,17 @@ export function stopMaintenanceJobs(): void {
 }
 
 /**
- * 手动触发任务
+ * Manually trigger task
  */
 export async function triggerMaintenanceJob(jobName: string): Promise<void> {
   if (!defaultScheduler) {
-    throw new Error('调度器未初始化');
+    throw new Error('Scheduler not initialized');
   }
   await defaultScheduler.triggerJob(jobName);
 }
 
 /**
- * 获取任务状态
+ * Get task status
  */
 export function getMaintenanceJobStatus(): Array<{
   name: string;

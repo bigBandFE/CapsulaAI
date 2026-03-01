@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 const router = Router();
 
-// Helper to get userId from request (预留认证中间件)
+// Helper to get userId from request (reserved for auth middleware)
 const getUserId = (req: any): string => {
   const userId = req.user?.id || req.headers['x-user-id'];
   if (!userId) {
@@ -133,7 +133,7 @@ router.post('/tasks', async (req, res) => {
     const userId = getUserId(req);
     const parsed = createTaskSchema.parse(req.body);
     
-    // 转换为正确的类型
+    // Convert to correct type
     const input: import('../services/maintenance/maintenance.service').CreateTaskInput = {
       taskType: parsed.taskType as import('../services/maintenance/maintenance.service').CreateTaskInput['taskType'],
       description: parsed.description,
