@@ -3,12 +3,12 @@ import { PrismaClient, Prisma, Entity, Relation, CapsuleEntity, MaintenanceTask,
 const prisma = new PrismaClient();
 
 /**
- * JSON 对象类型
+ * JSON object type
  */
 type JsonObject = Record<string, unknown>;
 
 /**
- * 带关系的实体类型
+ * Entity type with relations
  */
 type EntityWithRelations = Entity & {
   relationsFrom: Relation[];
@@ -17,16 +17,16 @@ type EntityWithRelations = Entity & {
 };
 
 /**
- * 合并预览结果接口
+ * Merge preview result interface
  */
 export interface MergePreview {
-  /** 保留实体 */
+  /** Entity to keep */
   keepEntity: EntityWithRelations;
-  /** 被合并实体 */
+  /** Entity to merge */
   mergeEntity: EntityWithRelations;
-  /** 关系迁移预览 */
+  /** Relation migration preview */
   relationMigration: {
-    /** 将被迁移的关系 */
+    /** Relations to be migrated */
     relationsToMigrate: Array<{
       id: string;
       type: string;
@@ -34,143 +34,143 @@ export interface MergePreview {
       toEntityId: string;
       direction: 'incoming' | 'outgoing';
     }>;
-    /** 将被跳过的重复关系 */
+    /** Duplicate relations to be skipped */
     duplicateRelations: Array<{
       id: string;
       type: string;
       reason: string;
     }>;
   };
-  /** 别名合并预览 */
+  /** Alias merge preview */
   aliasMerge: {
-    /** 当前保留实体别名 */
+    /** Current aliases of keep entity */
     keepEntityAliases: string[];
-    /** 当前被合并实体别名 */
+    /** Current aliases of merge entity */
     mergeEntityAliases: string[];
-    /** 合并后的别名列表 */
+    /** Merged alias list */
     mergedAliases: string[];
-    /** 新增别名 */
+    /** New aliases */
     newAliases: string[];
   };
-  /** 标签合并预览 */
+  /** Tag merge preview */
   tagMerge: {
-    /** 保留实体标签 */
+    /** Tags of keep entity */
     keepEntityTags: string[];
-    /** 被合并实体标签 */
+    /** Tags of merge entity */
     mergeEntityTags: string[];
-    /** 合并后的标签列表 */
+    /** Merged tag list */
     mergedTags: string[];
-    /** 新增标签 */
+    /** New tags */
     newTags: string[];
   };
-  /** 引用更新预览 */
+  /** Reference update preview */
   referenceUpdates: {
-    /** 将被更新的胶囊实体关联 */
+    /** Capsule entity associations to be updated */
     capsuleEntityUpdates: number;
-    /** 将被更新的嵌入记录 */
+    /** Embedding records to be updated */
     embeddingUpdates: number;
   };
-  /** 合并后统计 */
+  /** Post-merge statistics */
   postMergeStats: {
-    /** 合并后提及次数 */
+    /** Merged mention count */
     mergedMentionCount: number;
-    /** 合并后关系数 */
+    /** Merged relation count */
     mergedRelationCount: number;
   };
 }
 
 /**
- * 合并操作结果接口
+ * Merge operation result interface
  */
 export interface MergeResult {
-  /** 是否成功 */
+  /** Whether successful */
   success: boolean;
-  /** 保留的实体ID */
+  /** Kept entity ID */
   keptEntityId?: string;
-  /** 被删除的实体ID */
+  /** Deleted entity ID */
   deletedEntityId?: string;
-  /** 迁移的关系数量 */
+  /** Migrated relations count */
   migratedRelationsCount?: number;
-  /** 跳过的重复关系数量 */
+  /** Skipped duplicate relations count */
   skippedRelationsCount?: number;
-  /** 更新的胶囊实体关联数量 */
+  /** Updated capsule entity associations count */
   updatedCapsuleEntitiesCount?: number;
-  /** 合并的别名数量 */
+  /** Merged aliases count */
   mergedAliasesCount?: number;
-  /** 合并的标签数量 */
+  /** Merged tags count */
   mergedTagsCount?: number;
-  /** 错误信息 */
+  /** Error message */
   error?: string;
 }
 
 /**
- * 合并日志条目接口
+ * Merge log entry interface
  */
 export interface MergeLogEntry {
-  /** 日志ID */
+  /** Log ID */
   id: string;
-  /** 任务ID */
+  /** Task ID */
   taskId?: string;
-  /** 用户ID */
+  /** User ID */
   userId?: string;
-  /** 操作类型 */
+  /** Operation type */
   operation: 'PREVIEW' | 'MERGE' | 'ROLLBACK';
-  /** 保留实体ID */
+  /** Keep entity ID */
   keepEntityId: string;
-  /** 被合并实体ID */
+  /** Merge entity ID */
   mergeEntityId: string;
-  /** 状态快照 */
+  /** State snapshot */
   snapshot?: JsonObject;
-  /** 操作详情 */
+  /** Operation details */
   details: JsonObject;
-  /** 操作是否成功 */
+  /** Whether operation succeeded */
   success?: boolean;
-  /** 错误信息 */
+  /** Error message */
   errorMessage?: string;
-  /** 操作时间 */
+  /** Operation time */
   createdAt: Date;
 }
 
 /**
- * 关系迁移配置接口
+ * Relation migration configuration interface
  */
 export interface RelationMigrationConfig {
-  /** 是否跳过已存在的关系 */
+  /** Whether to skip existing relations */
   skipExistingRelations: boolean;
-  /** 关系强度阈值 */
+  /** Relation strength threshold */
   minStrengthThreshold: number;
 }
 
 /**
- * 实体合并服务
+ * Entity merge service
  *
- * 提供知识图谱实体合并的完整工作流:
- * - 合并预览: 在正式合并前展示合并效果
- * - 关系迁移: 将被合并实体的关系迁移到保留实体
- * - 别名合并: 合并两个实体的别名列表
- * - 标签合并: 合并两个实体的标签
- * - 引用更新: 更新所有引用被合并实体的记录
- * - 合并日志: 记录合并操作的详细信息
+ * Provides complete workflow for knowledge graph entity merging:
+ * - Merge preview: Show merge effect before actual merge
+ * - Relation migration: Migrate relations from merged entity to kept entity
+ * - Alias merge: Merge alias lists of two entities
+ * - Tag merge: Merge tags of two entities
+ * - Reference update: Update all records referencing the merged entity
+ * - Merge log: Record detailed information of merge operations
  *
  * @example
  * ```typescript
- * // 预览合并
+ * // Preview merge
  * const preview = await mergeService.previewMerge('entity-a-id', 'entity-b-id');
  * console.log(preview.aliasMerge.mergedAliases);
  *
- * // 执行合并
+ * // Execute merge
  * const result = await mergeService.executeMerge('task-id', 'entity-a-id', 'entity-b-id');
  * if (result.success) {
- *   console.log(`合并完成，保留实体: ${result.keptEntityId}`);
+ *   console.log(`Merge completed, kept entity: ${result.keptEntityId}`);
  * }
  *
- * // 回滚合并
+ * // Rollback merge
  * await mergeService.rollbackMerge('task-id');
  * ```
  */
 export class MergeService {
   /**
-   * 默认关系迁移配置
+   * Default relation migration configuration
    */
   private readonly defaultMigrationConfig: RelationMigrationConfig = {
     skipExistingRelations: true,
@@ -178,15 +178,15 @@ export class MergeService {
   };
 
   /**
-   * 生成合并预览
+   * Generate merge preview
    *
-   * 在正式合并前展示合并效果，包括关系迁移、别名合并、标签合并等
+   * Show merge effect before actual merge, including relation migration, alias merge, tag merge, etc.
    *
-   * @param sourceEntityId - 源实体ID
-   * @param targetEntityId - 目标实体ID
-   * @param config - 关系迁移配置 (可选)
-   * @returns 合并预览结果
-   * @throws Error 当实体不存在时
+   * @param sourceEntityId - Source entity ID
+   * @param targetEntityId - Target entity ID
+   * @param config - Relation migration configuration (optional)
+   * @returns Merge preview result
+   * @throws Error when entity does not exist
    */
   async previewMerge(
     sourceEntityId: string,
@@ -195,42 +195,42 @@ export class MergeService {
   ): Promise<MergePreview> {
     const migrationConfig = { ...this.defaultMigrationConfig, ...config };
 
-    // 获取两个实体及其关联数据
+    // Get two entities and their associated data
     const [sourceEntity, targetEntity] = await Promise.all([
       this.getEntityWithRelations(sourceEntityId),
       this.getEntityWithRelations(targetEntityId),
     ]);
 
     if (!sourceEntity) {
-      throw new Error(`源实体不存在: ${sourceEntityId}`);
+      throw new Error(`Source entity does not exist: ${sourceEntityId}`);
     }
     if (!targetEntity) {
-      throw new Error(`目标实体不存在: ${targetEntityId}`);
+      throw new Error(`Target entity does not exist: ${targetEntityId}`);
     }
 
-    // 决定保留哪个实体（提及次数更多或更近的）
+    // Decide which entity to keep (more mentions or more recent)
     const { keepEntity, mergeEntity } = this.determineKeepEntity(
       sourceEntity,
       targetEntity
     );
 
-    // 分析关系迁移
+    // Analyze relation migration
     const relationMigration = await this.analyzeRelationMigration(
       keepEntity,
       mergeEntity,
       migrationConfig
     );
 
-    // 分析别名合并
+    // Analyze alias merge
     const aliasMerge = this.analyzeAliasMerge(keepEntity, mergeEntity);
 
-    // 分析标签合并
+    // Analyze tag merge
     const tagMerge = await this.analyzeTagMerge(keepEntity, mergeEntity);
 
-    // 分析引用更新
+    // Analyze reference updates
     const referenceUpdates = await this.analyzeReferenceUpdates(mergeEntity);
 
-    // 计算合并后统计
+    // Calculate post-merge statistics
     const postMergeStats = {
       mergedMentionCount: keepEntity.mentionCount + mergeEntity.mentionCount,
       mergedRelationCount:
@@ -251,15 +251,15 @@ export class MergeService {
   }
 
   /**
-   * 执行实体合并
+   * Execute entity merge
    *
-   * 使用事务保证数据一致性，支持回滚操作
+   * Use transaction to ensure data consistency, support rollback operations
    *
-   * @param taskId - 维护任务ID
-   * @param sourceEntityId - 源实体ID
-   * @param targetEntityId - 目标实体ID
-   * @param config - 关系迁移配置 (可选)
-   * @returns 合并结果
+   * @param taskId - Maintenance task ID
+   * @param sourceEntityId - Source entity ID
+   * @param targetEntityId - Target entity ID
+   * @param config - Relation migration configuration (optional)
+   * @returns Merge result
    */
   async executeMerge(
     taskId: string,
@@ -271,40 +271,40 @@ export class MergeService {
 
     try {
       const result = await prisma.$transaction(async (tx) => {
-        // 1. 获取实体信息
+        // 1. Get entity information
         const sourceEntity = await this.getEntityWithRelations(sourceEntityId);
         const targetEntity = await this.getEntityWithRelations(targetEntityId);
 
         if (!sourceEntity || !targetEntity) {
-          throw new Error('实体不存在');
+          throw new Error('Entity does not exist');
         }
 
-        // 检查是否尝试合并同一个实体
+        // Check if attempting to merge same entity
         if (sourceEntity.id === targetEntity.id) {
-          throw new Error('不能合并实体到自身');
+          throw new Error('Cannot merge entity into itself');
         }
 
-        // 检查环形合并
+        // Check for circular merge
         const hasCycle = await this.checkMergeCycle(tx, sourceEntityId, targetEntityId);
         if (hasCycle) {
-          throw new Error('检测到环形合并：目标实体已经是源实体的合并目标');
+          throw new Error('Circular merge detected: target entity is already a merge target of source entity');
         }
 
-        // 检查实体是否已被合并
+        // Check if entity has already been merged
         if (sourceEntity.status === 'MERGED' || targetEntity.status === 'MERGED') {
-          throw new Error('不能合并已被标记为 MERGED 的实体');
+          throw new Error('Cannot merge entities marked as MERGED');
         }
 
-        // 决定保留哪个实体
+        // Decide which entity to keep
         const { keepEntity, mergeEntity } = this.determineKeepEntity(
           sourceEntity,
           targetEntity
         );
 
-        // 2. 创建状态快照用于回滚
+        // 2. Create state snapshot for rollback
         const snapshot = await this.createMergeSnapshot(tx, keepEntity, mergeEntity);
 
-        // 3. 迁移关系
+        // 3. Migrate relations
         const migrationResult = await this.migrateRelations(
           tx,
           keepEntity,
@@ -312,20 +312,20 @@ export class MergeService {
           migrationConfig
         );
 
-        // 4. 合并别名
+        // 4. Merge aliases
         const mergedAliases = await this.mergeAliases(tx, keepEntity, mergeEntity);
 
-        // 5. 合并标签
+        // 5. Merge tags
         const mergedTags = await this.mergeTags(tx, keepEntity, mergeEntity);
 
-        // 6. 更新引用
+        // 6. Update references
         const referenceUpdateResult = await this.updateReferences(
           tx,
           keepEntity,
           mergeEntity
         );
 
-        // 7. 更新保留实体的统计信息
+        // 7. Update statistics of kept entity
         await tx.entity.update({
           where: { id: keepEntity.id },
           data: {
@@ -338,17 +338,17 @@ export class MergeService {
           },
         });
 
-        // 8. 标记被合并的实体为 MERGED 状态（而不是删除）
+        // 8. Mark merged entity as MERGED status (instead of deleting)
         await tx.entity.update({
           where: { id: mergeEntity.id },
           data: {
             status: 'MERGED',
             mergedIntoId: keepEntity.id,
-            // 保留 mentionCount 和其他数据用于可能的回滚
+            // Keep mentionCount and other data for possible rollback
           },
         });
 
-        // 9. 更新维护任务状态
+        // 9. Update maintenance task status
         await tx.maintenanceTask.update({
           where: { id: taskId },
           data: {
@@ -369,7 +369,7 @@ export class MergeService {
           },
         });
 
-        // 10. 记录合并日志
+        // 10. Record merge log
         await this.logMergeOperation(tx, {
           taskId,
           operation: 'MERGE',
@@ -398,7 +398,7 @@ export class MergeService {
 
       return result;
     } catch (error) {
-      // 记录错误日志
+      // Record error log
       await this.logMergeOperation(prisma, {
         taskId,
         operation: 'MERGE',
@@ -418,13 +418,13 @@ export class MergeService {
   }
 
   /**
-   * 回滚实体合并
+   * Rollback entity merge
    *
-   * 根据维护任务中的状态快照恢复被合并的实体
+   * Restore merged entity based on state snapshot in maintenance task
    *
-   * @param taskId - 维护任务ID
-   * @returns 是否成功回滚
-   * @throws Error 当任务不存在或没有快照时
+   * @param taskId - Maintenance task ID
+   * @returns Whether rollback succeeded
+   * @throws Error when task does not exist or has no snapshot
    */
   async rollbackMerge(taskId: string): Promise<boolean> {
     const task = await prisma.maintenanceTask.findUnique({
@@ -432,30 +432,30 @@ export class MergeService {
     });
 
     if (!task) {
-      throw new Error(`任务不存在: ${taskId}`);
+      throw new Error(`Task does not exist: ${taskId}`);
     }
 
     if (task.status !== MaintenanceStatus.APPLIED) {
-      throw new Error(`任务状态不是 APPLIED，无法回滚: ${task.status}`);
+      throw new Error(`Task status is not APPLIED, cannot rollback: ${task.status}`);
     }
 
     const changes = (task.changes as JsonObject) || {};
     const snapshot = changes._mergeSnapshot as JsonObject | undefined;
 
     if (!snapshot) {
-      throw new Error('找不到合并快照，无法回滚');
+      throw new Error('Cannot find merge snapshot, cannot rollback');
     }
 
     try {
       await prisma.$transaction(async (tx) => {
-        // 1. 恢复被合并实体的状态（从 MERGED 恢复为 ACTIVE）
+        // 1. Restore merged entity status (from MERGED to ACTIVE)
         const mergeEntitySnapshot = snapshot.mergeEntity as JsonObject;
         await tx.entity.update({
           where: { id: mergeEntitySnapshot.id as string },
           data: {
             status: 'ACTIVE',
             mergedIntoId: null,
-            // 恢复原始字段值
+            // Restore original field values
             canonicalName: mergeEntitySnapshot.canonicalName as string,
             normalizedName: mergeEntitySnapshot.normalizedName as string,
             type: mergeEntitySnapshot.type as string,
@@ -468,11 +468,11 @@ export class MergeService {
           },
         });
 
-        // 2. 恢复关系
+        // 2. Restore relations
         const relationsSnapshot = snapshot.relations as JsonObject[];
         if (relationsSnapshot && Array.isArray(relationsSnapshot)) {
           for (const relation of relationsSnapshot) {
-            // 检查关系是否已存在
+            // Check if relation already exists
             const existing = await tx.relation.findFirst({
               where: {
                 fromEntityId: relation.fromEntityId as string,
@@ -499,11 +499,11 @@ export class MergeService {
           }
         }
 
-        // 3. 恢复 CapsuleEntity 关联
+        // 3. Restore CapsuleEntity associations
         const capsuleEntitiesSnapshot = snapshot.capsuleEntities as JsonObject[];
         if (capsuleEntitiesSnapshot && Array.isArray(capsuleEntitiesSnapshot)) {
           for (const ce of capsuleEntitiesSnapshot) {
-            // 检查是否已存在
+            // Check if already exists
             const existing = await tx.capsuleEntity.findFirst({
               where: {
                 capsuleId: ce.capsuleId as string,
@@ -526,7 +526,7 @@ export class MergeService {
           }
         }
 
-        // 4. 恢复保留实体的原始状态
+        // 4. Restore original state of kept entity
         const keepEntitySnapshot = snapshot.keepEntity as JsonObject;
         await tx.entity.update({
           where: { id: keepEntitySnapshot.id as string },
@@ -538,16 +538,16 @@ export class MergeService {
           },
         });
 
-        // 5. 更新任务状态为已回滚
+        // 5. Update task status to rolled back
         await tx.maintenanceTask.update({
           where: { id: taskId },
           data: {
             status: MaintenanceStatus.REVERTED,
-            reviewComment: '任务已回滚',
+            reviewComment: 'Task has been rolled back',
           },
         });
 
-        // 6. 记录回滚日志
+        // 6. Record rollback log
         await this.logMergeOperation(tx, {
           taskId,
           operation: 'ROLLBACK',
@@ -562,16 +562,16 @@ export class MergeService {
 
       return true;
     } catch (error) {
-      console.error('回滚合并失败:', error);
+      console.error('Rollback merge failed:', error);
       throw error;
     }
   }
 
   /**
-   * 获取合并日志
+   * Get merge logs
    *
-   * @param options - 查询选项
-   * @returns 合并日志列表
+   * @param options - Query options
+   * @returns Merge log list
    */
   async getMergeLogs(options: {
     taskId?: string;
@@ -582,7 +582,7 @@ export class MergeService {
   } = {}): Promise<{ logs: MergeLogEntry[]; total: number }> {
     const { taskId, entityId, operation, limit = 50, offset = 0 } = options;
 
-    // 从 MergeLog 表查询日志
+    // Query logs from MergeLog table
     const where: Prisma.MergeLogWhereInput = {};
 
     if (taskId) {
@@ -627,10 +627,10 @@ export class MergeService {
   }
 
   /**
-   * 批量执行合并
+   * Batch execute merges
    *
-   * @param taskIds - 维护任务ID列表
-   * @returns 每个任务的执行结果
+   * @param taskIds - List of maintenance task IDs
+   * @returns Execution result for each task
    */
   async batchMerge(taskIds: string[]): Promise<MergeResult[]> {
     const results: MergeResult[] = [];
@@ -643,7 +643,7 @@ export class MergeService {
       if (!task) {
         results.push({
           success: false,
-          error: `任务不存在: ${taskId}`,
+          error: `Task does not exist: ${taskId}`,
         });
         continue;
       }
@@ -654,7 +654,7 @@ export class MergeService {
       ) {
         results.push({
           success: false,
-          error: `任务状态不正确: ${task.status}`,
+          error: `Task status is incorrect: ${task.status}`,
         });
         continue;
       }
@@ -662,7 +662,7 @@ export class MergeService {
       if (!task.sourceEntityId || !task.targetEntityId) {
         results.push({
           success: false,
-          error: '任务缺少实体ID',
+          error: 'Task missing entity IDs',
         });
         continue;
       }
@@ -678,13 +678,13 @@ export class MergeService {
     return results;
   }
 
-  // ==================== 私有方法 ====================
+  // ==================== Private methods ====================
 
   /**
-   * 获取实体及其关系
+   * Get entity and its relations
    *
-   * @param entityId - 实体ID
-   * @returns 实体及其关系
+   * @param entityId - Entity ID
+   * @returns Entity and its relations
    */
   private async getEntityWithRelations(
     entityId: string
@@ -699,52 +699,52 @@ export class MergeService {
     });
 
     if (!entity) {
-      throw new Error(`实体不存在: ${entityId}`);
+      throw new Error(`Entity does not exist: ${entityId}`);
     }
 
     return entity as EntityWithRelations;
   }
 
   /**
-   * 决定保留哪个实体
+   * Decide which entity to keep
    *
-   * 策略: 提及次数更多、更近被提及、或ID更小的实体
+   * Strategy: Keep entity with more mentions, more recently mentioned, or smaller ID
    *
-   * @param entityA - 实体A
-   * @param entityB - 实体B
-   * @returns 保留实体和被合并实体
+   * @param entityA - Entity A
+   * @param entityB - Entity B
+   * @returns Keep entity and merge entity
    */
   private determineKeepEntity(
     entityA: EntityWithRelations,
     entityB: EntityWithRelations
   ): { keepEntity: EntityWithRelations; mergeEntity: EntityWithRelations } {
-    // 优先保留提及次数更多的实体
+    // Prioritize entity with more mentions
     if (entityA.mentionCount !== entityB.mentionCount) {
       return entityA.mentionCount > entityB.mentionCount
         ? { keepEntity: entityA, mergeEntity: entityB }
         : { keepEntity: entityB, mergeEntity: entityA };
     }
 
-    // 其次保留更近被提及的实体
+    // Secondly prioritize entity more recently mentioned
     if (entityA.lastSeenAt.getTime() !== entityB.lastSeenAt.getTime()) {
       return entityA.lastSeenAt > entityB.lastSeenAt
         ? { keepEntity: entityA, mergeEntity: entityB }
         : { keepEntity: entityB, mergeEntity: entityA };
     }
 
-    // 最后保留ID更小的实体（确定性选择）
+    // Finally keep entity with smaller ID (deterministic selection)
     return entityA.id < entityB.id
       ? { keepEntity: entityA, mergeEntity: entityB }
       : { keepEntity: entityB, mergeEntity: entityA };
   }
 
   /**
-   * 分析关系迁移
+   * Analyze relation migration
    *
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @param config - 迁移配置
-   * @returns 关系迁移分析结果
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @param config - Migration configuration
+   * @returns Relation migration analysis result
    */
   private async analyzeRelationMigration(
     keepEntity: EntityWithRelations,
@@ -754,13 +754,13 @@ export class MergeService {
     const relationsToMigrate: MergePreview['relationMigration']['relationsToMigrate'] = [];
     const duplicateRelations: MergePreview['relationMigration']['duplicateRelations'] = [];
 
-    // 收集被合并实体的所有关系
+    // Collect all relations of merged entity
     const mergeRelations = [
       ...mergeEntity.relationsFrom.map((r) => ({ ...r, direction: 'outgoing' as const })),
       ...mergeEntity.relationsTo.map((r) => ({ ...r, direction: 'incoming' as const })),
     ];
 
-    // 收集保留实体的所有关系用于去重检查
+    // Collect all relations of kept entity for deduplication check
     const keepRelationKeys = new Set(
       [
         ...keepEntity.relationsFrom.map(
@@ -773,29 +773,29 @@ export class MergeService {
     );
 
     for (const relation of mergeRelations) {
-      // 检查关系强度
+      // Check relation strength
       if (relation.strength < config.minStrengthThreshold) {
         duplicateRelations.push({
           id: relation.id,
           type: relation.relationType,
-          reason: '关系强度低于阈值',
+          reason: 'Relation strength below threshold',
         });
         continue;
       }
 
-      // 检查是否是自引用关系
+      // Check if self-referencing relation
       const otherEntityId =
         relation.direction === 'outgoing' ? relation.toEntityId : relation.fromEntityId;
       if (otherEntityId === keepEntity.id) {
         duplicateRelations.push({
           id: relation.id,
           type: relation.relationType,
-          reason: '与保留实体形成自引用关系',
+          reason: 'Forms self-referencing relation with kept entity',
         });
         continue;
       }
 
-      // 检查是否会导致重复关系
+      // Check if would cause duplicate relation
       if (config.skipExistingRelations) {
         const newKey =
           relation.direction === 'outgoing'
@@ -807,7 +807,7 @@ export class MergeService {
           duplicateRelations.push({
             id: relation.id,
             type: relation.relationType,
-            reason: '与保留实体的现有关系重复',
+            reason: 'Duplicates existing relation of kept entity',
           });
           continue;
         }
@@ -826,21 +826,21 @@ export class MergeService {
   }
 
   /**
-   * 分析别名合并
+   * Analyze alias merge
    *
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @returns 别名合并分析结果
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @returns Alias merge analysis result
    */
   private analyzeAliasMerge(
     keepEntity: Entity,
     mergeEntity: Entity
   ): MergePreview['aliasMerge'] {
-    // 从 canonicalName 和 description 中提取可能的别名
+    // Extract possible aliases from canonicalName and description
     const keepEntityAliases = this.extractAliases(keepEntity);
     const mergeEntityAliases = this.extractAliases(mergeEntity);
 
-    // 合并别名（去重，保留大小写）
+    // Merge aliases (deduplicate, preserve case)
     const mergedAliases: string[] = [];
     const seen = new Set<string>();
     for (const alias of [...keepEntityAliases, ...mergeEntityAliases]) {
@@ -851,7 +851,7 @@ export class MergeService {
       }
     }
 
-    // 找出新增别名
+    // Find new aliases
     const newAliases = mergeEntityAliases.filter(
       (alias) => !keepEntityAliases.some((a) => a.toLowerCase() === alias.toLowerCase())
     );
@@ -865,23 +865,23 @@ export class MergeService {
   }
 
   /**
-   * 分析标签合并
+   * Analyze tag merge
    *
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @returns 标签合并分析结果
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @returns Tag merge analysis result
    */
   private async analyzeTagMerge(
     keepEntity: Entity,
     mergeEntity: Entity
   ): Promise<MergePreview['tagMerge']> {
-    // 获取实体的标签
+    // Get entity tags
     const [keepEntityTags, mergeEntityTags] = await Promise.all([
       this.getEntityTags(keepEntity.id),
       this.getEntityTags(mergeEntity.id),
     ]);
 
-    // 合并标签（去重）
+    // Merge tags (deduplicate)
     const mergedTags: string[] = [];
     const seen = new Set<string>();
     for (const tag of [...keepEntityTags, ...mergeEntityTags]) {
@@ -892,7 +892,7 @@ export class MergeService {
       }
     }
 
-    // 找出新增标签
+    // Find new tags
     const newTags = mergeEntityTags.filter((tag) => !keepEntityTags.includes(tag));
 
     return {
@@ -904,10 +904,10 @@ export class MergeService {
   }
 
   /**
-   * 获取实体关联的标签
+   * Get tags associated with entity
    *
-   * @param entityId - 实体ID
-   * @returns 标签名称列表
+   * @param entityId - Entity ID
+   * @returns List of tag names
    */
   private async getEntityTags(entityId: string): Promise<string[]> {
     const capsuleEntities = await prisma.capsuleEntity.findMany({
@@ -938,33 +938,33 @@ export class MergeService {
   }
 
   /**
-   * 检查是否存在环形合并
+   * Check for circular merge
    *
-   * 防止 A -> B -> A 这样的循环合并
+   * Prevent circular merges like A -> B -> A
    *
-   * @param tx - Prisma 事务客户端
-   * @param sourceId - 源实体ID
-   * @param targetId - 目标实体ID
-   * @returns 是否存在环形合并
+   * @param tx - Prisma transaction client
+   * @param sourceId - Source entity ID
+   * @param targetId - Target entity ID
+   * @returns Whether circular merge exists
    */
   private async checkMergeCycle(
     tx: Prisma.TransactionClient,
     sourceId: string,
     targetId: string
   ): Promise<boolean> {
-    // 检查 targetId 是否已经是 sourceId 的合并目标
-    // 即检查 targetId 是否已经被合并到了 sourceId 的链中
+    // Check if targetId is already a merge target of sourceId
+    // i.e., check if targetId has already been merged into sourceId's chain
     let currentId: string | null = targetId;
     const visited = new Set<string>();
 
     while (currentId) {
-      // 防止无限循环
+      // Prevent infinite loop
       if (visited.has(currentId)) {
-        return true; // 发现循环
+        return true; // Found cycle
       }
       visited.add(currentId);
 
-      // 如果当前实体就是源实体，说明会形成环形
+      // If current entity is source entity, would form circular merge
       if (currentId === sourceId) {
         return true;
       }
@@ -981,17 +981,17 @@ export class MergeService {
   }
 
   /**
-   * 分析引用更新
+   * Analyze reference updates
    *
-   * @param mergeEntity - 被合并实体
-   * @returns 引用更新分析结果
+   * @param mergeEntity - Entity to merge
+   * @returns Reference update analysis result
    */
   private async analyzeReferenceUpdates(
     mergeEntity: EntityWithRelations
   ): Promise<MergePreview['referenceUpdates']> {
     const capsuleEntityCount = mergeEntity.capsuleEntities.length;
 
-    // 检查嵌入记录
+    // Check embedding records
     const embeddingCount = await prisma.embedding.count({
       where: { objectId: mergeEntity.id, objectType: 'ENTITY' },
     });
@@ -1003,12 +1003,12 @@ export class MergeService {
   }
 
   /**
-   * 创建合并状态快照
+   * Create merge state snapshot
    *
-   * @param tx - Prisma 事务客户端
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @returns 状态快照
+   * @param tx - Prisma transaction client
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @returns State snapshot
    */
   private async createMergeSnapshot(
     tx: Prisma.TransactionClient,
@@ -1078,13 +1078,13 @@ export class MergeService {
   }
 
   /**
-   * 迁移关系
+   * Migrate relations
    *
-   * @param tx - Prisma 事务客户端
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @param config - 迁移配置
-   * @returns 迁移结果
+   * @param tx - Prisma transaction client
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @param config - Migration configuration
+   * @returns Migration result
    */
   private async migrateRelations(
     tx: Prisma.TransactionClient,
@@ -1100,10 +1100,10 @@ export class MergeService {
     const migratedRelations: string[] = [];
     const skippedRelations: string[] = [];
 
-    // 获取预览分析结果
+    // Get preview analysis result
     const preview = await this.analyzeRelationMigration(keepEntity, mergeEntity, config);
 
-    // 迁移出站关系
+    // Migrate outgoing relations
     for (const relation of mergeEntity.relationsFrom) {
       const previewItem = preview.relationsToMigrate.find((r) => r.id === relation.id);
       if (!previewItem) {
@@ -1111,13 +1111,13 @@ export class MergeService {
         continue;
       }
 
-      // 检查是否会导致自引用
+      // Check if would cause self-reference
       if (relation.toEntityId === keepEntity.id) {
         skippedRelations.push(relation.id);
         continue;
       }
 
-      // 检查是否已存在相同关系
+      // Check if same relation already exists
       const existing = await tx.relation.findFirst({
         where: {
           fromEntityId: keepEntity.id,
@@ -1127,7 +1127,7 @@ export class MergeService {
       });
 
       if (existing) {
-        // 更新现有关系的强度
+        // Update strength of existing relation
         await tx.relation.update({
           where: { id: existing.id },
           data: {
@@ -1136,10 +1136,10 @@ export class MergeService {
             lastSeenAt: new Date(),
           },
         });
-        // 删除旧关系
+        // Delete old relation
         await tx.relation.delete({ where: { id: relation.id } });
       } else {
-        // 更新关系指向
+        // Update relation pointer
         await tx.relation.update({
           where: { id: relation.id },
           data: { fromEntityId: keepEntity.id },
@@ -1149,7 +1149,7 @@ export class MergeService {
       migratedRelations.push(relation.id);
     }
 
-    // 迁移入站关系
+    // Migrate incoming relations
     for (const relation of mergeEntity.relationsTo) {
       const previewItem = preview.relationsToMigrate.find((r) => r.id === relation.id);
       if (!previewItem) {
@@ -1157,13 +1157,13 @@ export class MergeService {
         continue;
       }
 
-      // 检查是否会导致自引用
+      // Check if would cause self-reference
       if (relation.fromEntityId === keepEntity.id) {
         skippedRelations.push(relation.id);
         continue;
       }
 
-      // 检查是否已存在相同关系
+      // Check if same relation already exists
       const existing = await tx.relation.findFirst({
         where: {
           fromEntityId: relation.fromEntityId,
@@ -1173,7 +1173,7 @@ export class MergeService {
       });
 
       if (existing) {
-        // 更新现有关系的强度
+        // Update strength of existing relation
         await tx.relation.update({
           where: { id: existing.id },
           data: {
@@ -1182,10 +1182,10 @@ export class MergeService {
             lastSeenAt: new Date(),
           },
         });
-        // 删除旧关系
+        // Delete old relation
         await tx.relation.delete({ where: { id: relation.id } });
       } else {
-        // 更新关系指向
+        // Update relation pointer
         await tx.relation.update({
           where: { id: relation.id },
           data: { toEntityId: keepEntity.id },
@@ -1204,31 +1204,31 @@ export class MergeService {
   }
 
   /**
-   * 合并别名
+   * Merge aliases
    *
-   * @param tx - Prisma 事务客户端
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @returns 合并后的别名列表
+   * @param tx - Prisma transaction client
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @returns Merged alias list
    */
   private async mergeAliases(
     tx: Prisma.TransactionClient,
     keepEntity: Entity,
     mergeEntity: Entity
   ): Promise<string[]> {
-    // 从两个实体中提取所有别名
+    // Extract all aliases from both entities
     const keepAliases = this.extractAliases(keepEntity);
     const mergeAliases = this.extractAliases(mergeEntity);
 
-    // 合并并去重（保留大小写）
+    // Merge and deduplicate (preserve case)
     const mergedAliases = new Set<string>([...keepAliases, ...mergeAliases]);
 
-    // 找出新增的别名
+    // Find new aliases
     const newAliases = mergeAliases.filter(
       (alias) => !keepAliases.some((a) => a.toLowerCase() === alias.toLowerCase())
     );
 
-    // 更新保留实体的别名列表
+    // Update alias list of kept entity
     if (mergedAliases.size > 0) {
       await tx.entity.update({
         where: { id: keepEntity.id },
@@ -1238,7 +1238,7 @@ export class MergeService {
       });
     }
 
-    // 同时更新描述，包含合并的别名信息（向后兼容）
+    // Also update description to include merged alias information (backward compatibility)
     if (newAliases.length > 0) {
       const aliasNote = `Also known as: ${newAliases.join(', ')}`;
       const newDescription = keepEntity.description
@@ -1255,25 +1255,25 @@ export class MergeService {
   }
 
   /**
-   * 从实体中提取别名
+   * Extract aliases from entity
    *
-   * 优先使用数据库中的 aliases 字段，如果没有则从描述中提取
+   * Prioritize using aliases field from database, if not present extract from description
    *
-   * @param entity - 实体
-   * @returns 别名列表
+   * @param entity - Entity
+   * @returns List of aliases
    */
   private extractAliases(entity: Entity): string[] {
     const aliases = new Set<string>();
 
-    // 添加规范名称
+    // Add canonical name
     aliases.add(entity.canonicalName);
 
-    // 优先使用数据库中的 aliases 字段
+    // Prioritize using aliases field from database
     if (entity.aliases && Array.isArray(entity.aliases)) {
       entity.aliases.forEach((alias) => aliases.add(alias));
     }
 
-    // 从描述中提取别名（向后兼容）
+    // Extract aliases from description (backward compatibility)
     if (entity.description) {
       const akaMatch = entity.description.match(/also known as["']?([^\n]+)/i);
       if (akaMatch) {
@@ -1289,19 +1289,19 @@ export class MergeService {
   }
 
   /**
-   * 合并标签
+   * Merge tags
    *
-   * @param tx - Prisma 事务客户端
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @returns 合并后的标签列表
+   * @param tx - Prisma transaction client
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @returns Merged tag list
    */
   private async mergeTags(
     tx: Prisma.TransactionClient,
     keepEntity: Entity,
     mergeEntity: Entity
   ): Promise<string[]> {
-    // 获取被合并实体的胶囊关联
+    // Get capsule associations of merged entity
     const mergeCapsuleEntities = await tx.capsuleEntity.findMany({
       where: { entityId: mergeEntity.id },
       select: { capsuleId: true },
@@ -1313,13 +1313,13 @@ export class MergeService {
       return [];
     }
 
-    // 获取这些胶囊的标签
+    // Get tags of these capsules
     const capsuleTags = await tx.capsuleTag.findMany({
       where: { capsuleId: { in: mergeCapsuleIds } },
       include: { tag: true },
     });
 
-    // 获取保留实体已有的胶囊ID
+    // Get capsule IDs already associated with kept entity
     const keepCapsuleEntities = await tx.capsuleEntity.findMany({
       where: { entityId: keepEntity.id },
       select: { capsuleId: true },
@@ -1327,12 +1327,12 @@ export class MergeService {
 
     const keepCapsuleIds = new Set(keepCapsuleEntities.map((ce) => ce.capsuleId));
 
-    // 找出需要迁移标签的胶囊（保留实体没有的）
+    // Find capsules needing tags (those not associated with kept entity)
     const capsulesNeedingTags = mergeCapsuleIds.filter(
       (id) => !keepCapsuleIds.has(id)
     );
 
-    // 收集标签名称
+    // Collect tag names
     const tagNames: string[] = [];
     const seen = new Set<string>();
     for (const ct of capsuleTags) {
@@ -1342,10 +1342,10 @@ export class MergeService {
       }
     }
 
-    // 为这些胶囊添加标签
+    // Add tags to these capsules
     for (const capsuleId of capsulesNeedingTags) {
       for (const tagName of tagNames) {
-        // 查找或创建标签
+        // Find or create tag
         let tag = await tx.tag.findUnique({
           where: { name: tagName },
         });
@@ -1356,7 +1356,7 @@ export class MergeService {
           });
         }
 
-        // 检查是否已存在关联
+        // Check if association already exists
         const existing = await tx.capsuleTag.findFirst({
           where: {
             capsuleId,
@@ -1379,25 +1379,25 @@ export class MergeService {
   }
 
   /**
-   * 更新引用
+   * Update references
    *
-   * @param tx - Prisma 事务客户端
-   * @param keepEntity - 保留实体
-   * @param mergeEntity - 被合并实体
-   * @returns 更新结果
+   * @param tx - Prisma transaction client
+   * @param keepEntity - Entity to keep
+   * @param mergeEntity - Entity to merge
+   * @returns Update result
    */
   private async updateReferences(
     tx: Prisma.TransactionClient,
     keepEntity: Entity,
     mergeEntity: Entity
   ): Promise<{ capsuleEntityCount: number; embeddingCount: number }> {
-    // 更新 CapsuleEntity 关联
+    // Update CapsuleEntity associations
     const capsuleEntityResult = await tx.capsuleEntity.updateMany({
       where: { entityId: mergeEntity.id },
       data: { entityId: keepEntity.id },
     });
 
-    // 更新 Embedding 记录
+    // Update Embedding records
     const embeddingResult = await tx.embedding.updateMany({
       where: { objectId: mergeEntity.id, objectType: 'ENTITY' },
       data: { objectId: keepEntity.id },
@@ -1410,11 +1410,11 @@ export class MergeService {
   }
 
   /**
-   * 合并描述
+   * Merge descriptions
    *
-   * @param descA - 描述A
-   * @param descB - 描述B
-   * @returns 合并后的描述
+   * @param descA - Description A
+   * @param descB - Description B
+   * @returns Merged description
    */
   private mergeDescriptions(descA: string | null, descB: string | null): string | undefined {
     if (!descA && !descB) {
@@ -1427,26 +1427,26 @@ export class MergeService {
       return descA;
     }
 
-    // 如果描述相同，返回其中一个
+    // If descriptions are the same, return one of them
     if (descA === descB) {
       return descA;
     }
 
-    // 合并描述（使用换行分隔）
-    return `${descA}\n\n(合并自另一实体: ${descB})`;
+    // Merge descriptions (separated by newline)
+    return `${descA}\n\n(Merged from another entity: ${descB})`;
   }
 
   /**
-   * 记录合并操作日志
+   * Record merge operation log
    *
-   * @param tx - Prisma 事务客户端
-   * @param entry - 日志条目
+   * @param tx - Prisma transaction client
+   * @param entry - Log entry
    */
   private async logMergeOperation(
     tx: Prisma.TransactionClient,
     entry: Omit<MergeLogEntry, 'id' | 'createdAt'>
   ): Promise<void> {
-    // 将日志持久化到 MergeLog 表
+    // Persist log to MergeLog table
     await tx.mergeLog.create({
       data: {
         operation: entry.operation as 'PREVIEW' | 'MERGE' | 'ROLLBACK',
@@ -1461,7 +1461,7 @@ export class MergeService {
       },
     });
 
-    // 同时输出到控制台用于调试
+    // Also output to console for debugging
     console.log('[MergeLog]', {
       ...entry,
       timestamp: new Date().toISOString(),
@@ -1470,6 +1470,6 @@ export class MergeService {
 }
 
 /**
- * 默认实体合并服务实例
+ * Default entity merge service instance
  */
 export const mergeService = new MergeService();

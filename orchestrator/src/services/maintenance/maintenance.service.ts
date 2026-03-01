@@ -2,7 +2,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// 从 Prisma 客户端导入枚举类型
+// Import enum types from Prisma client
 import {
   MaintenanceTask,
   MaintenanceType,
@@ -13,62 +13,62 @@ import {
 import { similarityService, EntityData } from './similarity.service';
 
 /**
- * 自动批准置信度阈值
- * 当置信度 >= 0.95 时，任务将自动批准
+ * Auto-approval confidence threshold
+ * Tasks with confidence >= 0.95 will be auto-approved
  */
 const AUTO_APPROVE_THRESHOLD = 0.95;
 
 /**
- * 维护任务变更记录接口
+ * Maintenance task change record interface
  */
 export interface MaintenanceChange {
-  /** 变更字段 */
+  /** Changed field */
   field: string;
-  /** 旧值 */
+  /** Old value */
   oldValue?: unknown;
-  /** 新值 */
+  /** New value */
   newValue?: unknown;
 }
 
 /**
- * 创建维护任务输入接口
+ * Create maintenance task input interface
  */
 export interface CreateTaskInput {
-  /** 任务类型 */
+  /** Task type */
   taskType: MaintenanceType;
-  /** 任务描述 */
+  /** Task description */
   description: string;
-  /** 置信度 (0-1) */
+  /** Confidence (0-1) */
   confidence: number;
-  /** 源实体ID */
+  /** Source entity ID */
   sourceEntityId?: string;
-  /** 目标实体ID */
+  /** Target entity ID */
   targetEntityId?: string;
-  /** 关系ID */
+  /** Relation ID */
   relationId?: string;
-  /** 变更内容 */
+  /** Changes content */
   changes?: MaintenanceChange[];
 }
 
 /**
- * 健康报告接口
+ * Health report interface
  */
 export interface HealthReport {
-  /** 健康评分 (0-100) */
+  /** Health score (0-100) */
   score: number;
-  /** 总实体数 */
+  /** Total entities */
   totalEntities: number;
-  /** 总关系数 */
+  /** Total relations */
   totalRelations: number;
-  /** 孤立实体数 */
+  /** Orphan entities count */
   orphanEntities: number;
-  /** 潜在重复数 */
+  /** Potential duplicates count */
   potentialDuplicates: number;
-  /** 过时实体数 */
+  /** Stale entities count */
   staleEntities: number;
-  /** 损坏关系数 */
+  /** Broken relations count */
   brokenRelations: number;
-  /** 详细信息 */
+  /** Detailed information */
   details: {
     orphanEntities: string[];
     potentialDuplicates: Array<{
@@ -82,33 +82,33 @@ export interface HealthReport {
 }
 
 /**
- * 任务执行结果接口
+ * Task execution result interface
  */
 export interface TaskExecutionResult {
-  /** 是否成功 */
+  /** Whether successful */
   success: boolean;
-  /** 执行后的任务 */
+  /** Task after execution */
   task?: MaintenanceTask;
-  /** 错误信息 */
+  /** Error message */
   error?: string;
 }
 
 /**
- * JSON 对象类型
+ * JSON object type
  */
 type JsonObject = Record<string, unknown>;
 
 /**
- * 维护任务服务
+ * Maintenance task service
  *
- * 提供知识图谱维护任务的完整生命周期管理:
- * - 任务创建
- * - 状态机管理 (PENDING → AUTO_APPROVED/APPROVED/REJECTED → APPLIED)
- * - 自动批准 (confidence >= 0.95)
- * - 任务执行 (实体合并、关系发现等)
- * - 任务回滚
+ * Provides complete lifecycle management for knowledge graph maintenance tasks:
+ * - Task creation
+ * - State machine management (PENDING → AUTO_APPROVED/APPROVED/REJECTED → APPLIED)
+ * - Auto-approval (confidence >= 0.95)
+ * - Task execution (entity merge, relation discovery, etc.)
+ * - Task rollback
  *
- * 状态机:
+ * State machine:
  * ```
  * PENDING → auto_check(confidence>=0.95) → AUTO_APPROVED → apply → APPLIED
  * PENDING → auto_check(confidence<0.95) → AWAITING_USER_REVIEW → approve → APPROVED → apply → APPLIED
@@ -118,21 +118,21 @@ type JsonObject = Record<string, unknown>;
  */
 export class MaintenanceService {
   /**
-   * 创建维护任务
+   * Create maintenance task
    *
-   * 根据置信度自动决定任务状态:
-   * - confidence >= 0.95: AUTO_APPROVED (自动批准)
-   * - confidence < 0.95: AWAITING_USER_REVIEW (等待用户审核)
+   * Automatically determine task status based on confidence:
+   * - confidence >= 0.95: AUTO_APPROVED (auto-approved)
+   * - confidence < 0.95: AWAITING_USER_REVIEW (awaiting user review)
    *
-   * @param userId - 用户ID
-   * @param input - 任务创建输入
-   * @returns 创建的维护任务
+   * @param userId - User ID
+   * @param input - Task creation input
+   * @returns Created maintenance task
    */
   async createTask(
     userId: string,
     input: CreateTaskInput
   ): Promise<MaintenanceTask> {
-    // 确定初始状态
+    // Determine initial status
     let initialStatus: MaintenanceStatus;
     let reviewedBy: ReviewerType | null = null;
     let reviewedAt: Date | null = null;
@@ -163,25 +163,25 @@ export class MaintenanceService {
   }
 
   /**
-   * 批量创建维护任务
+   * Batch create maintenance tasks
    *
-   * 使用事务保证原子性，如果任一任务创建失败，所有任务都不会创建
+   * Use transaction to ensure atomicity; if any task creation fails, all tasks will be rolled back
    *
-   * @param userId - 用户ID
-   * @param inputs - 任务创建输入列表
-   * @returns 创建的维护任务列表
-   * @throws Error 当任一任务创建失败时，所有任务都会被回滚
+   * @param userId - User ID
+   * @param inputs - List of task creation inputs
+   * @returns List of created maintenance tasks
+   * @throws Error when any task creation fails, all tasks will be rolled back
    */
   async createTasks(
     userId: string,
     inputs: CreateTaskInput[]
   ): Promise<MaintenanceTask[]> {
-    // 使用事务保证原子性
+    // Use transaction to ensure atomicity
     return prisma.$transaction(async (tx) => {
       const tasks: MaintenanceTask[] = [];
 
       for (const input of inputs) {
-        // 确定初始状态
+        // Determine initial status
         let initialStatus: MaintenanceStatus;
         let reviewedBy: ReviewerType | null = null;
         let reviewedAt: Date | null = null;
@@ -218,19 +218,19 @@ export class MaintenanceService {
   }
 
   /**
-   * 扫描实体重复项
+   * Scan for entity duplicates
    *
-   * 使用相似度服务查找潜在的重复实体，并创建合并任务
+   * Use similarity service to find potential duplicate entities and create merge tasks
    *
-   * @param userId - 用户ID
-   * @param similarityThreshold - 相似度阈值 (默认 0.85)
-   * @returns 创建的维护任务列表
+   * @param userId - User ID
+   * @param similarityThreshold - Similarity threshold (default 0.85)
+   * @returns List of created maintenance tasks
    */
   async scanForDuplicates(
     userId: string,
     similarityThreshold = 0.85
   ): Promise<MaintenanceTask[]> {
-    // 获取所有实体
+    // Get all entities
     const entities = await prisma.entity.findMany({
       include: {
         relationsFrom: { select: { toEntityId: true } },
@@ -238,32 +238,32 @@ export class MaintenanceService {
       },
     });
 
-    // 转换为 EntityData 格式
-    // 注意: embedding 字段是 Unsupported("vector(1536)") 类型，无法直接通过 Prisma 获取
-    // 需要通过原始查询或单独的向量服务获取
+    // Convert to EntityData format
+    // Note: embedding field is Unsupported("vector(1536)") type, cannot be directly retrieved via Prisma
+    // Need to use raw query or separate vector service to get
     const entityData: EntityData[] = entities.map((e) => ({
       id: e.id,
       name: e.canonicalName,
       type: e.type,
       aliases: [],
-      embedding: undefined, // 向量需要通过其他方式获取
+      embedding: undefined, // Vector needs to be retrieved via other means
       relatedEntities: [
         ...e.relationsFrom.map((r) => r.toEntityId),
         ...e.relationsTo.map((r) => r.fromEntityId),
       ],
     }));
 
-    // 查找相似实体对
+    // Find similar entity pairs
     const similarPairs = await similarityService.findSimilarPairs(
       entityData,
       similarityThreshold
     );
 
-    // 创建维护任务
+    // Create maintenance tasks
     const tasks: MaintenanceTask[] = [];
 
     for (const pair of similarPairs) {
-      // 检查是否已存在相同任务
+      // Check if same task already exists
       const existing = await prisma.maintenanceTask.findFirst({
         where: {
           userId,
@@ -284,7 +284,7 @@ export class MaintenanceService {
 
       const task = await this.createTask(userId, {
         taskType: MaintenanceType.ENTITY_MERGE,
-        description: `合并实体 "${pair.entityA.name}" 和 "${pair.entityB.name}" (相似度: ${Math.round(
+        description: `Merge entities "${pair.entityA.name}" and "${pair.entityB.name}" (similarity: ${Math.round(
           pair.similarity * 100
         )}%)`,
         confidence: pair.similarity,
@@ -316,13 +316,13 @@ export class MaintenanceService {
   }
 
   /**
-   * 发现新关系
+   * Discover new relations
    *
-   * 查找在多个胶囊中共同出现的实体对，建议创建关系
+   * Find entity pairs that co-occur in multiple capsules and suggest creating relations
    *
-   * @param userId - 用户ID
-   * @param coOccurrenceThreshold - 共现阈值 (默认 2)
-   * @returns 创建的维护任务列表
+   * @param userId - User ID
+   * @param coOccurrenceThreshold - Co-occurrence threshold (default 2)
+   * @returns List of created maintenance tasks
    */
   async discoverRelations(
     userId: string,
@@ -330,7 +330,7 @@ export class MaintenanceService {
   ): Promise<MaintenanceTask[]> {
     const tasks: MaintenanceTask[] = [];
 
-    // 查找在胶囊中共同出现的实体对
+    // Find entity pairs that co-occur in capsules
     const coOccurrences = await prisma.$queryRaw<
       Array<{
         entity1_id: string;
@@ -350,7 +350,7 @@ export class MaintenanceService {
     `;
 
     for (const co of coOccurrences) {
-      // 检查关系是否已存在
+      // Check if relation already exists
       const existingRelation = await prisma.relation.findFirst({
         where: {
           OR: [
@@ -362,7 +362,7 @@ export class MaintenanceService {
 
       if (existingRelation) continue;
 
-      // 检查任务是否已存在
+      // Check if task already exists
       const existingTask = await prisma.maintenanceTask.findFirst({
         where: {
           userId,
@@ -390,12 +390,12 @@ export class MaintenanceService {
 
       if (!entityA || !entityB) continue;
 
-      // 根据共现次数计算置信度
+      // Calculate confidence based on co-occurrence count
       const confidence = Math.min(0.95, 0.5 + co.co_occurrence_count * 0.1);
 
       const task = await this.createTask(userId, {
         taskType: MaintenanceType.RELATION_DISCOVERY,
-        description: `在 "${entityA.canonicalName}" 和 "${entityB.canonicalName}" 之间创建关系 (${co.co_occurrence_count} 次共现)`,
+        description: `Create relation between "${entityA.canonicalName}" and "${entityB.canonicalName}" (${co.co_occurrence_count} co-occurrences)`,
         confidence,
         sourceEntityId: co.entity1_id,
         targetEntityId: co.entity2_id,
@@ -430,13 +430,13 @@ export class MaintenanceService {
   }
 
   /**
-   * 检测过时实体
+   * Detect stale entities
    *
-   * 查找长时间未被提及的实体
+   * Find entities that haven't been mentioned for a long time
    *
-   * @param userId - 用户ID
-   * @param daysThreshold - 天数阈值 (默认 90 天)
-   * @returns 创建的维护任务列表
+   * @param userId - User ID
+   * @param daysThreshold - Days threshold (default 90 days)
+   * @returns List of created maintenance tasks
    */
   async detectStaleEntities(
     userId: string,
@@ -454,7 +454,7 @@ export class MaintenanceService {
     const tasks: MaintenanceTask[] = [];
 
     for (const entity of staleEntities) {
-      // 检查任务是否已存在
+      // Check if task already exists
       const existing = await prisma.maintenanceTask.findFirst({
         where: {
           userId,
@@ -478,7 +478,7 @@ export class MaintenanceService {
 
       const task = await this.createTask(userId, {
         taskType: MaintenanceType.STALE_DETECTION,
-        description: `实体 "${entity.canonicalName}" 已 ${daysSinceSeen} 天未被提及`,
+        description: `Entity "${entity.canonicalName}" has not been mentioned for ${daysSinceSeen} days`,
         confidence: 0.7,
         sourceEntityId: entity.id,
         changes: [
@@ -507,12 +507,12 @@ export class MaintenanceService {
   }
 
   /**
-   * 检测孤立实体
+   * Detect orphan entities
    *
-   * 查找没有任何关系的实体
+   * Find entities without any relations
    *
-   * @param userId - 用户ID
-   * @returns 创建的维护任务列表
+   * @param userId - User ID
+   * @returns List of created maintenance tasks
    */
   async detectOrphanEntities(userId: string): Promise<MaintenanceTask[]> {
     const orphanEntities = await prisma.entity.findMany({
@@ -524,7 +524,7 @@ export class MaintenanceService {
     const tasks: MaintenanceTask[] = [];
 
     for (const entity of orphanEntities) {
-      // 检查任务是否已存在
+      // Check if task already exists
       const existing = await prisma.maintenanceTask.findFirst({
         where: {
           userId,
@@ -544,7 +544,7 @@ export class MaintenanceService {
 
       const task = await this.createTask(userId, {
         taskType: MaintenanceType.ORPHAN_CLEANUP,
-        description: `实体 "${entity.canonicalName}" 没有任何关系`,
+        description: `Entity "${entity.canonicalName}" has no relations`,
         confidence: 0.6,
         sourceEntityId: entity.id,
         changes: [
@@ -568,15 +568,15 @@ export class MaintenanceService {
   }
 
   /**
-   * 优化标签
+   * Optimize tags
    *
-   * 查找并合并相似的标签
+   * Find and merge similar tags
    *
-   * @param userId - 用户ID
-   * @returns 创建的维护任务列表
+   * @param userId - User ID
+   * @returns List of created maintenance tasks
    */
   async optimizeTags(userId: string): Promise<MaintenanceTask[]> {
-    // 获取所有标签
+    // Get all tags
     const tags = await prisma.tag.findMany({
       include: {
         capsuleTags: true,
@@ -585,20 +585,20 @@ export class MaintenanceService {
 
     const tasks: MaintenanceTask[] = [];
 
-    // 查找相似标签
+    // Find similar tags
     for (let i = 0; i < tags.length; i++) {
       for (let j = i + 1; j < tags.length; j++) {
         const tagA = tags[i];
         const tagB = tags[j];
 
-        // 计算标签名称相似度
+        // Calculate tag name similarity
         const similarity = similarityService.calculateNameSimilarity(
           tagA.name,
           tagB.name
         );
 
         if (similarity >= 0.9) {
-          // 检查任务是否已存在（检查具体的标签对）
+          // Check if task already exists (check specific tag pair)
           const existing = await prisma.maintenanceTask.findFirst({
             where: {
               userId,
@@ -610,7 +610,7 @@ export class MaintenanceService {
                   MaintenanceStatus.AUTO_APPROVED,
                 ],
               },
-              // 检查是否已存在相同标签对的任务
+              // Check if task for same tag pair already exists
               OR: [
                 {
                   changes: {
@@ -644,7 +644,7 @@ export class MaintenanceService {
 
           const task = await this.createTask(userId, {
             taskType: MaintenanceType.TAG_OPTIMIZATION,
-            description: `合并相似标签 "${tagA.name}" 和 "${tagB.name}" (相似度: ${Math.round(
+            description: `Merge similar tags "${tagA.name}" and "${tagB.name}" (similarity: ${Math.round(
               similarity * 100
             )}%)`,
             confidence: similarity,
@@ -691,11 +691,11 @@ export class MaintenanceService {
   }
 
   /**
-   * 获取维护任务列表
+   * Get maintenance task list
    *
-   * @param userId - 用户ID
-   * @param options - 查询选项
-   * @returns 任务列表和总数
+   * @param userId - User ID
+   * @param options - Query options
+   * @returns Task list and total count
    */
   async getTasks(
     userId: string,
@@ -732,11 +732,11 @@ export class MaintenanceService {
   }
 
   /**
-   * 获取单个维护任务
+   * Get single maintenance task
    *
-   * @param userId - 用户ID
-   * @param taskId - 任务ID
-   * @returns 维护任务或 null
+   * @param userId - User ID
+   * @param taskId - Task ID
+   * @returns Maintenance task or null
    */
   async getTask(
     userId: string,
@@ -748,15 +748,15 @@ export class MaintenanceService {
   }
 
   /**
-   * 批准维护任务
+   * Approve maintenance task
    *
-   * 将任务状态从 AWAITING_USER_REVIEW 转换为 APPROVED
+   * Convert task status from AWAITING_USER_REVIEW to APPROVED
    *
-   * @param userId - 用户ID
-   * @param taskId - 任务ID
-   * @param comment - 审核意见 (可选)
-   * @returns 更新后的任务
-   * @throws Error 当任务不存在或状态不正确时
+   * @param userId - User ID
+   * @param taskId - Task ID
+   * @param comment - Review comment (optional)
+   * @returns Updated task
+   * @throws Error when task does not exist or status is incorrect
    */
   async approveTask(
     userId: string,
@@ -768,17 +768,17 @@ export class MaintenanceService {
     });
 
     if (!task) {
-      throw new Error('任务不存在');
+      throw new Error('Task does not exist');
     }
 
-    // 验证状态转换
+    // Validate status transition
     const allowedStatuses: MaintenanceStatus[] = [
       MaintenanceStatus.AWAITING_USER_REVIEW,
       MaintenanceStatus.PENDING,
     ];
 
     if (!allowedStatuses.includes(task.status)) {
-      throw new Error(`无法批准状态为 "${task.status}" 的任务`);
+      throw new Error(`Cannot approve task with status "${task.status}"`);
     }
 
     return prisma.maintenanceTask.update({
@@ -793,15 +793,15 @@ export class MaintenanceService {
   }
 
   /**
-   * 拒绝维护任务
+   * Reject maintenance task
    *
-   * 将任务状态转换为 REJECTED
+   * Convert task status to REJECTED
    *
-   * @param userId - 用户ID
-   * @param taskId - 任务ID
-   * @param comment - 拒绝原因 (可选)
-   * @returns 更新后的任务
-   * @throws Error 当任务不存在或状态不正确时
+   * @param userId - User ID
+   * @param taskId - Task ID
+   * @param comment - Rejection reason (optional)
+   * @returns Updated task
+   * @throws Error when task does not exist or status is incorrect
    */
   async rejectTask(
     userId: string,
@@ -813,10 +813,10 @@ export class MaintenanceService {
     });
 
     if (!task) {
-      throw new Error('任务不存在');
+      throw new Error('Task does not exist');
     }
 
-    // 验证状态转换
+    // Validate status transition
     const allowedStatuses: MaintenanceStatus[] = [
       MaintenanceStatus.AWAITING_USER_REVIEW,
       MaintenanceStatus.PENDING,
@@ -824,7 +824,7 @@ export class MaintenanceService {
     ];
 
     if (!allowedStatuses.includes(task.status)) {
-      throw new Error(`无法拒绝状态为 "${task.status}" 的任务`);
+      throw new Error(`Cannot reject task with status "${task.status}"`);
     }
 
     return prisma.maintenanceTask.update({
@@ -839,15 +839,15 @@ export class MaintenanceService {
   }
 
   /**
-   * 执行维护任务
+   * Execute maintenance task
    *
-   * 根据任务类型执行相应的操作，使用事务保证数据一致性
+   * Execute corresponding operation based on task type, using transaction to ensure data consistency
    *
-   * 状态转换: APPROVED | AUTO_APPROVED → APPLIED
+   * Status transition: APPROVED | AUTO_APPROVED → APPLIED
    *
-   * @param userId - 用户ID
-   * @param taskId - 任务ID
-   * @returns 执行结果
+   * @param userId - User ID
+   * @param taskId - Task ID
+   * @returns Execution result
    */
   async applyTask(
     userId: string,
@@ -858,10 +858,10 @@ export class MaintenanceService {
     });
 
     if (!task) {
-      return { success: false, error: '任务不存在' };
+      return { success: false, error: 'Task does not exist' };
     }
 
-    // 验证状态
+    // Validate status
     const allowedStatuses: MaintenanceStatus[] = [
       MaintenanceStatus.APPROVED,
       MaintenanceStatus.AUTO_APPROVED,
@@ -870,17 +870,17 @@ export class MaintenanceService {
     if (!allowedStatuses.includes(task.status)) {
       return {
         success: false,
-        error: `无法执行状态为 "${task.status}" 的任务，任务必须是 APPROVED 或 AUTO_APPROVED 状态`,
+        error: `Cannot execute task with status "${task.status}", task must be in APPROVED or AUTO_APPROVED state`,
       };
     }
 
     try {
-      // 使用事务执行操作
+      // Execute operation using transaction
       const result = await prisma.$transaction(async (tx) => {
-        // 记录执行前的状态快照
+        // Record pre-execution state snapshot
         const snapshot = await this.createSnapshot(tx, task);
 
-        // 执行任务
+        // Execute task
         switch (task.taskType) {
           case MaintenanceType.ENTITY_MERGE:
             await this.executeEntityMerge(tx, task);
@@ -898,10 +898,10 @@ export class MaintenanceService {
             await this.executeOrphanCleanup(tx, task);
             break;
           default:
-            throw new Error(`未知的任务类型: ${task.taskType}`);
+            throw new Error(`Unknown task type: ${task.taskType}`);
         }
 
-        // 更新任务状态为已应用
+        // Update task status to applied
         const currentChanges = (task.changes as JsonObject) || {};
         const updatedTask = await tx.maintenanceTask.update({
           where: { id: taskId },
@@ -920,7 +920,7 @@ export class MaintenanceService {
 
       return { success: true, task: result };
     } catch (error) {
-      // 更新任务状态为失败
+      // Update task status to failed
       const failedTask = await prisma.maintenanceTask.update({
         where: { id: taskId },
         data: {
@@ -938,16 +938,16 @@ export class MaintenanceService {
   }
 
   /**
-   * 回滚维护任务
+   * Rollback maintenance task
    *
-   * 将已应用的任务回滚到之前的状态
+   * Rollback applied task to previous state
    *
-   * 状态转换: APPLIED → REVERTED
+   * Status transition: APPLIED → REVERTED
    *
-   * @param userId - 用户ID
-   * @param taskId - 任务ID
-   * @param comment - 回滚原因 (可选)
-   * @returns 执行结果
+   * @param userId - User ID
+   * @param taskId - Task ID
+   * @param comment - Rollback reason (optional)
+   * @returns Execution result
    */
   async revertTask(
     userId: string,
@@ -959,27 +959,27 @@ export class MaintenanceService {
     });
 
     if (!task) {
-      return { success: false, error: '任务不存在' };
+      return { success: false, error: 'Task does not exist' };
     }
 
     if (task.status !== MaintenanceStatus.APPLIED) {
       return {
         success: false,
-        error: `无法回滚状态为 "${task.status}" 的任务，只有 APPLIED 状态的任务可以回滚`,
+        error: `Cannot rollback task with status "${task.status}", only APPLIED tasks can be rolled back`,
       };
     }
 
     try {
       const result = await prisma.$transaction(async (tx) => {
-        // 获取执行前的状态快照
+        // Get pre-execution state snapshot
         const changes = (task.changes as JsonObject) || {};
         const snapshot = changes._snapshot as JsonObject | undefined;
 
         if (!snapshot) {
-          throw new Error('找不到任务执行前的状态快照，无法回滚');
+          throw new Error('Cannot find pre-execution state snapshot, cannot rollback');
         }
 
-        // 根据任务类型执行回滚
+        // Execute rollback based on task type
         switch (task.taskType) {
           case MaintenanceType.ENTITY_MERGE:
             await this.revertEntityMerge(tx, task, snapshot);
@@ -994,20 +994,20 @@ export class MaintenanceService {
             await this.revertStaleDetection(tx, task, snapshot);
             break;
           case MaintenanceType.ORPHAN_CLEANUP:
-            // ORPHAN_CLEANUP 不需要回滚操作
+            // ORPHAN_CLEANUP does not need rollback operation
             break;
           default:
-            throw new Error(`未知的任务类型: ${task.taskType}`);
+            throw new Error(`Unknown task type: ${task.taskType}`);
         }
 
-        // 更新任务状态为已回滚
+        // Update task status to reverted
         const updatedTask = await tx.maintenanceTask.update({
           where: { id: taskId },
           data: {
             status: MaintenanceStatus.REVERTED,
             reviewComment: comment
-              ? `回滚原因: ${comment}`
-              : '任务已回滚',
+              ? `Rollback reason: ${comment}`
+              : 'Task has been rolled back',
           },
         });
 
@@ -1018,17 +1018,17 @@ export class MaintenanceService {
     } catch (error) {
       return {
         success: false,
-        error: `回滚失败: ${(error as Error).message}`,
+        error: `Rollback failed: ${(error as Error).message}`,
       };
     }
   }
 
   /**
-   * 创建执行前的状态快照
+   * Create pre-execution state snapshot
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
-   * @returns 状态快照
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
+   * @returns State snapshot
    */
   private async createSnapshot(
     tx: Prisma.TransactionClient,
@@ -1061,11 +1061,11 @@ export class MaintenanceService {
         break;
 
       case MaintenanceType.RELATION_DISCOVERY:
-        // 关系发现不需要快照，因为只是创建新记录
+        // Relation discovery does not need snapshot, as it only creates new records
         break;
 
       case MaintenanceType.TAG_OPTIMIZATION:
-        // 标签优化快照在 changes 中已包含
+        // Tag optimization snapshot is already included in changes
         break;
 
       case MaintenanceType.STALE_DETECTION:
@@ -1078,7 +1078,7 @@ export class MaintenanceService {
         break;
 
       case MaintenanceType.ORPHAN_CLEANUP:
-        // 孤立实体清理不需要快照
+        // Orphan cleanup does not need snapshot
         break;
     }
 
@@ -1086,17 +1086,17 @@ export class MaintenanceService {
   }
 
   /**
-   * 执行实体合并
+   * Execute entity merge
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
    */
   private async executeEntityMerge(
     tx: Prisma.TransactionClient,
     task: MaintenanceTask
   ): Promise<void> {
     if (!task.sourceEntityId || !task.targetEntityId) {
-      throw new Error('缺少实体ID');
+      throw new Error('Missing entity IDs');
     }
 
     const sourceEntity = await tx.entity.findUnique({
@@ -1108,10 +1108,10 @@ export class MaintenanceService {
     });
 
     if (!sourceEntity || !targetEntity) {
-      throw new Error('实体不存在');
+      throw new Error('Entity does not exist');
     }
 
-    // 决定保留哪个实体（提及次数更多或更近的）
+    // Decide which entity to keep (more mentions or more recent)
     const keepEntity =
       sourceEntity.mentionCount >= targetEntity.mentionCount
         ? sourceEntity
@@ -1119,7 +1119,7 @@ export class MaintenanceService {
     const mergeEntity =
       keepEntity.id === sourceEntity.id ? targetEntity : sourceEntity;
 
-    // 更新关系指向保留的实体
+    // Update relations to point to kept entity
     await tx.relation.updateMany({
       where: { fromEntityId: mergeEntity.id },
       data: { fromEntityId: keepEntity.id },
@@ -1130,18 +1130,18 @@ export class MaintenanceService {
       data: { toEntityId: keepEntity.id },
     });
 
-    // 更新 CapsuleEntity 指向保留的实体
+    // Update CapsuleEntity to point to kept entity
     await tx.capsuleEntity.updateMany({
       where: { entityId: mergeEntity.id },
       data: { entityId: keepEntity.id },
     });
 
-    // 删除被合并的实体
+    // Delete merged entity
     await tx.entity.delete({
       where: { id: mergeEntity.id },
     });
 
-    // 更新保留实体的提及次数
+    // Update mention count of kept entity
     await tx.entity.update({
       where: { id: keepEntity.id },
       data: {
@@ -1152,13 +1152,13 @@ export class MaintenanceService {
   }
 
   /**
-   * 回滚实体合并
+   * Rollback entity merge
    *
-   * 恢复被合并的实体，并还原关系指向
+   * Restore merged entity and revert relation pointers
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
-   * @param snapshot - 状态快照
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
+   * @param snapshot - State snapshot
    */
   private async revertEntityMerge(
     tx: Prisma.TransactionClient,
@@ -1170,17 +1170,17 @@ export class MaintenanceService {
     const mergedRelations = snapshot.mergedRelations as JsonObject[] | undefined;
 
     if (!sourceEntity || !targetEntity) {
-      throw new Error('状态快照不完整，无法回滚');
+      throw new Error('State snapshot is incomplete, cannot rollback');
     }
 
-    // 确定哪个实体被删除了（mentionCount 较小的那个）
+    // Determine which entity was deleted (the one with smaller mentionCount)
     const sourceMentionCount = (sourceEntity.mentionCount as number) || 0;
     const targetMentionCount = (targetEntity.mentionCount as number) || 0;
     
     const deletedEntity = sourceMentionCount >= targetMentionCount ? targetEntity : sourceEntity;
     const keptEntity = sourceMentionCount >= targetMentionCount ? sourceEntity : targetEntity;
 
-    // 1. 重新创建被删除的实体
+    // 1. Recreate deleted entity
     await tx.entity.create({
       data: {
         id: deletedEntity.id as string,
@@ -1194,13 +1194,13 @@ export class MaintenanceService {
       },
     });
 
-    // 2. 恢复关系指向
+    // 2. Restore relation pointers
     if (mergedRelations && Array.isArray(mergedRelations)) {
       for (const relation of mergedRelations) {
         const fromEntityId = relation.fromEntityId as string;
         const toEntityId = relation.toEntityId as string;
         
-        // 如果关系指向的是保留实体，需要检查是否应该指向被恢复的实体
+        // If relation points to kept entity, check if it should point to restored entity
         if (fromEntityId === keptEntity.id && relation.originalFromEntityId === deletedEntity.id) {
           await tx.relation.updateMany({
             where: {
@@ -1222,7 +1222,7 @@ export class MaintenanceService {
       }
     }
 
-    // 3. 恢复 CapsuleEntity 关联
+    // 3. Restore CapsuleEntity associations
     const capsuleEntities = snapshot.capsuleEntities as JsonObject[] | undefined;
     if (capsuleEntities && Array.isArray(capsuleEntities)) {
       for (const ce of capsuleEntities) {
@@ -1238,7 +1238,7 @@ export class MaintenanceService {
       }
     }
 
-    // 4. 恢复保留实体的提及次数
+    // 4. Restore mention count of kept entity
     await tx.entity.update({
       where: { id: keptEntity.id as string },
       data: {
@@ -1248,20 +1248,20 @@ export class MaintenanceService {
   }
 
   /**
-   * 执行关系发现
+   * Execute relation discovery
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
    */
   private async executeRelationDiscovery(
     tx: Prisma.TransactionClient,
     task: MaintenanceTask
   ): Promise<void> {
     if (!task.sourceEntityId || !task.targetEntityId) {
-      throw new Error('缺少实体ID');
+      throw new Error('Missing entity IDs');
     }
 
-    // 检查关系是否已存在
+    // Check if relation already exists
     const existingRelation = await tx.relation.findFirst({
       where: {
         OR: [
@@ -1278,10 +1278,10 @@ export class MaintenanceService {
     });
 
     if (existingRelation) {
-      throw new Error('关系已存在');
+      throw new Error('Relation already exists');
     }
 
-    // 创建新关系
+    // Create new relation
     await tx.relation.create({
       data: {
         fromEntityId: task.sourceEntityId,
@@ -1294,11 +1294,11 @@ export class MaintenanceService {
   }
 
   /**
-   * 回滚关系发现
+   * Rollback relation discovery
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
-   * @param snapshot - 状态快照
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
+   * @param snapshot - State snapshot
    */
   private async revertRelationDiscovery(
     tx: Prisma.TransactionClient,
@@ -1306,10 +1306,10 @@ export class MaintenanceService {
     _snapshot: JsonObject
   ): Promise<void> {
     if (!task.sourceEntityId || !task.targetEntityId) {
-      throw new Error('缺少实体ID');
+      throw new Error('Missing entity IDs');
     }
 
-    // 删除创建的关系
+    // Delete created relation
     await tx.relation.deleteMany({
       where: {
         fromEntityId: task.sourceEntityId,
@@ -1320,10 +1320,10 @@ export class MaintenanceService {
   }
 
   /**
-   * 执行标签优化
+   * Execute tag optimization
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
    */
   private async executeTagOptimization(
     tx: Prisma.TransactionClient,
@@ -1335,58 +1335,58 @@ export class MaintenanceService {
     const tagBId = changes?.tagBId as string | undefined;
 
     if (!tagAId || !tagBId) {
-      throw new Error('缺少标签ID');
+      throw new Error('Missing tag IDs');
     }
 
-    // 获取标签信息
+    // Get tag information
     const tagA = await tx.tag.findUnique({ where: { id: tagAId } });
     const tagB = await tx.tag.findUnique({ where: { id: tagBId } });
 
     if (!tagA || !tagB) {
-      throw new Error('标签不存在');
+      throw new Error('Tag does not exist');
     }
 
-    // 决定保留哪个标签（使用次数更多的）
+    // Decide which tag to keep (the one with more usage)
     const tagAUsageCount = (changes?.tagAUsageCount as number) || 0;
     const tagBUsageCount = (changes?.tagBUsageCount as number) || 0;
 
     const keepTag = tagAUsageCount >= tagBUsageCount ? tagA : tagB;
     const mergeTag = keepTag.id === tagA.id ? tagB : tagA;
 
-    // 更新 CapsuleTag 指向保留的标签
+    // Update CapsuleTag to point to kept tag
     await tx.capsuleTag.updateMany({
       where: { tagId: mergeTag.id },
       data: { tagId: keepTag.id },
     });
 
-    // 删除被合并的标签
+    // Delete merged tag
     await tx.tag.delete({
       where: { id: mergeTag.id },
     });
   }
 
   /**
-   * 回滚标签优化
+   * Rollback tag optimization
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
-   * @param _snapshot - 状态快照
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
+   * @param _snapshot - State snapshot
    */
   private async revertTagOptimization(
     tx: Prisma.TransactionClient,
     task: MaintenanceTask,
     _snapshot: JsonObject
   ): Promise<void> {
-    // 从 changes 中获取被删除的标签信息
+    // Get deleted tag information from changes
     const changes = (task.changes as JsonObject) || {};
     const tagBName = changes?.tagBName as string | undefined;
     const tagBId = changes?.tagBId as string | undefined;
 
     if (!tagBName || !tagBId) {
-      throw new Error('缺少标签信息，无法回滚');
+      throw new Error('Missing tag information, cannot rollback');
     }
 
-    // 重新创建被删除的标签
+    // Recreate deleted tag
     await tx.tag.create({
       data: {
         id: tagBId,
@@ -1394,37 +1394,37 @@ export class MaintenanceService {
       },
     });
 
-    // 注意：恢复 CapsuleTag 关联需要更复杂的逻辑
-    // 这里简化处理
+    // Note: Restoring CapsuleTag associations requires more complex logic
+    // Simplified handling here
   }
 
   /**
-   * 执行过时实体检测
+   * Execute stale entity detection
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
    */
   private async executeStaleDetection(
     tx: Prisma.TransactionClient,
     task: MaintenanceTask
   ): Promise<void> {
     if (!task.sourceEntityId) {
-      throw new Error('缺少实体ID');
+      throw new Error('Missing entity ID');
     }
 
-    // 将实体标记为过时（通过更新描述或添加元数据）
-    // 注意: Entity 模型没有 status 字段，这里只是记录操作
-    // 实际实现可能需要添加 status 字段或使用其他方式标记
+    // Mark entity as stale (by updating description or adding metadata)
+    // Note: Entity model does not have status field, here we just record the operation
+    // Actual implementation may need to add status field or use other marking method
     const entity = await tx.entity.findUnique({
       where: { id: task.sourceEntityId },
     });
 
     if (!entity) {
-      throw new Error('实体不存在');
+      throw new Error('Entity does not exist');
     }
 
-    // 更新描述以标记为过时
-    const staleNote = `[STALE] 该实体已过时，最后提及时间: ${entity.lastSeenAt.toISOString()}`;
+    // Update description to mark as stale
+    const staleNote = `[STALE] This entity is stale, last mentioned: ${entity.lastSeenAt.toISOString()}`;
     await tx.entity.update({
       where: { id: task.sourceEntityId },
       data: {
@@ -1436,11 +1436,11 @@ export class MaintenanceService {
   }
 
   /**
-   * 回滚过时实体检测
+   * Rollback stale entity detection
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
-   * @param _snapshot - 状态快照
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
+   * @param _snapshot - State snapshot
    */
   private async revertStaleDetection(
     tx: Prisma.TransactionClient,
@@ -1448,10 +1448,10 @@ export class MaintenanceService {
     snapshot: JsonObject
   ): Promise<void> {
     if (!task.sourceEntityId) {
-      throw new Error('缺少实体ID');
+      throw new Error('Missing entity ID');
     }
 
-    // 恢复实体描述
+    // Restore entity description
     const entitySnapshot = snapshot.entity as JsonObject | undefined;
     if (entitySnapshot && entitySnapshot.description !== undefined) {
       await tx.entity.update({
@@ -1464,24 +1464,24 @@ export class MaintenanceService {
   }
 
   /**
-   * 执行孤立实体清理
+   * Execute orphan cleanup
    *
-   * @param tx - Prisma 事务客户端
-   * @param task - 维护任务
+   * @param tx - Prisma transaction client
+   * @param task - Maintenance task
    */
   private async executeOrphanCleanup(
     _tx: Prisma.TransactionClient,
     _task: MaintenanceTask
   ): Promise<void> {
-    // ORPHAN_CLEANUP 只是标记，不执行实际删除
-    // 实际删除由用户手动决定
+    // ORPHAN_CLEANUP is just a marker, does not perform actual deletion
+    // Actual deletion is decided manually by user
   }
 
   /**
-   * 获取知识图谱健康报告
+   * Get knowledge graph health report
    *
-   * @param userId - 用户ID
-   * @returns 健康报告
+   * @param userId - User ID
+   * @returns Health report
    */
   async getHealthReport(userId: string): Promise<HealthReport> {
     const [
@@ -1523,14 +1523,14 @@ export class MaintenanceService {
       }),
     ]);
 
-    // 计算健康评分
+    // Calculate health score
     let score = 100;
     score -= orphanEntities * 2;
     score -= potentialDuplicates * 5;
     score -= staleEntities * 3;
     score = Math.max(0, score);
 
-    // 获取详细信息
+    // Get detailed information
     const orphanEntityIds = await prisma.entity.findMany({
       where: {
         AND: [
@@ -1594,12 +1594,12 @@ export class MaintenanceService {
   }
 
   /**
-   * 运行完整维护扫描
+   * Run full maintenance scan
    *
-   * 执行所有类型的维护扫描
+   * Execute all types of maintenance scans
    *
-   * @param userId - 用户ID
-   * @returns 扫描结果统计
+   * @param userId - User ID
+   * @returns Scan result statistics
    */
   async runFullScan(userId: string): Promise<{
     duplicates: number;
@@ -1626,12 +1626,12 @@ export class MaintenanceService {
   }
 
   /**
-   * 自动执行高置信度任务
+   * Auto-execute high confidence tasks
    *
-   * 自动执行所有 AUTO_APPROVED 状态的任务
+   * Automatically execute all AUTO_APPROVED tasks
    *
-   * @param userId - 用户ID
-   * @returns 执行结果列表
+   * @param userId - User ID
+   * @returns List of execution results
    */
   async autoApplyTasks(userId: string): Promise<TaskExecutionResult[]> {
     const { tasks } = await this.getTasks(userId, {
@@ -1651,6 +1651,6 @@ export class MaintenanceService {
 }
 
 /**
- * 默认维护服务实例
+ * Default maintenance service instance
  */
 export const maintenanceService = new MaintenanceService();
