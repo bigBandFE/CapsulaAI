@@ -10,6 +10,8 @@ import FeedbackPage from "@/pages/FeedbackPage";
 import InboxPage from "@/pages/InboxPage";
 import SettingsPage from "@/pages/SettingsPage";
 import EntityDetailPage from "@/pages/EntityDetailPage";
+import ReviewPage from "@/pages/ReviewPage";
+import MaintenancePage from "@/pages/MaintenancePage";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +29,8 @@ function App() {
             <Route path="/research" element={<ResearchPage />} />
             <Route path="/timeline" element={<TimelinePage />} />
             <Route path="/entities/:type/:name" element={<EntityDetailPage />} />
+            <Route path="/review" element={<ReviewPage />} />
+            <Route path="/maintenance" element={<MaintenancePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
