@@ -16,6 +16,7 @@ import reviewRoutes from './routes/review';
 import maintenanceRoutes from './routes/maintenance';
 import healthRoutes from './routes/health';
 import cors from 'cors';
+import { initializeMaintenanceJobs } from './jobs/maintenance.jobs';
 
 dotenv.config();
 
@@ -68,6 +69,9 @@ const startServer = async () => {
   }
 
   startWorker();
+
+  // Initialize maintenance jobs scheduler
+  initializeMaintenanceJobs();
 
   app.listen(port, () => {
     console.log(`Orchestrator running at http://localhost:${port}`);
