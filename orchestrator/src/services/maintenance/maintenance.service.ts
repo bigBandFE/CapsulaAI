@@ -25,9 +25,9 @@ export interface MaintenanceChange {
   /** 变更字段 */
   field: string;
   /** 旧值 */
-  oldValue: unknown;
+  oldValue?: unknown;
   /** 新值 */
-  newValue: unknown;
+  newValue?: unknown;
 }
 
 /**
@@ -1204,19 +1204,19 @@ export class MaintenanceService {
         if (fromEntityId === keptEntity.id && relation.originalFromEntityId === deletedEntity.id) {
           await tx.relation.updateMany({
             where: {
-              fromEntityId: keptEntity.id,
+              fromEntityId: keptEntity.id as string,
               toEntityId: relation.toEntityId as string,
             },
-            data: { fromEntityId: deletedEntity.id },
+            data: { fromEntityId: deletedEntity.id as string },
           });
         }
         if (toEntityId === keptEntity.id && relation.originalToEntityId === deletedEntity.id) {
           await tx.relation.updateMany({
             where: {
               fromEntityId: relation.fromEntityId as string,
-              toEntityId: keptEntity.id,
+              toEntityId: keptEntity.id as string,
             },
-            data: { toEntityId: deletedEntity.id },
+            data: { toEntityId: deletedEntity.id as string },
           });
         }
       }
@@ -1230,9 +1230,9 @@ export class MaintenanceService {
           await tx.capsuleEntity.updateMany({
             where: {
               capsuleId: ce.capsuleId as string,
-              entityId: keptEntity.id,
+              entityId: keptEntity.id as string,
             },
-            data: { entityId: deletedEntity.id },
+            data: { entityId: deletedEntity.id as string },
           });
         }
       }

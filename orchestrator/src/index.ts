@@ -14,6 +14,7 @@ import settingsRoutes from './routes/settings';
 import graphRoutes from './routes/graph';
 import reviewRoutes from './routes/review';
 import maintenanceRoutes from './routes/maintenance';
+import healthRoutes from './routes/health';
 import cors from 'cors';
 
 dotenv.config();
@@ -37,7 +38,8 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/graph', graphRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/review', reviewRoutes);
-app.use('/api/maintenance', maintenanceRoutes); // Phase 3 - Spaced Repetition
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/health', healthRoutes);
 
 // Health check
 app.get('/health', async (req, res) => {
