@@ -68,12 +68,32 @@ model Asset {
 // ==========================================
 // 2. Entity Layer (Stable Memory Skeleton)
 // ==========================================
+enum EntityStatus {
+  ACTIVE
+  MERGED
+  ARCHIVED
+  DELETED
+}
+
 model Entity {
   id             String  @id @default(uuid())
   type           String // PERSON, ORG, LOCATION, EVENT, TOPIC, DOCUMENT, etc.
   canonicalName  String
   normalizedName String
   description    String? @db.Text
+
+  // 别名列表，用于存储实体的其他名称
+  aliases String[] @default([])
+
+  // 实体状态
+  status EntityStatus @default(ACTIVE)
+
+  // 合并目标实体ID（当 status = MERGED 时有效）
+  mergedIntoId String?
+  mergedInto   Entity?  @relation("EntityMerge", fields: [mergedIntoId], references: [id])
+
+  // 反向关系：哪些实体合并到了这个实体
+  mergedFrom Entity[] @relation("EntityMerge")
 
   firstSeenAt     DateTime @default(now())
   lastSeenAt      DateTime @default(now())
@@ -89,6 +109,44 @@ model Entity {
   embeddings      Embedding[]
 
   @@index([normalizedName])
+  @@index([status])
+  @@index([mergedIntoId])
+}
+
+// ==========================================
+// 2.5 Merge Log (Entity Merge Operations)
+// ==========================================
+enum MergeOperationType {
+  PREVIEW
+  MERGE
+  ROLLBACK
+}
+
+model MergeLog {
+  id            String            @id @default(uuid())
+  operation     MergeOperationType
+  keepEntityId  String
+  mergeEntityId String
+  taskId        String?
+  userId        String?
+
+  // 合并前的状态快照
+  snapshot Json
+
+  // 操作详情
+  details Json
+
+  // 操作结果
+  success   Boolean  @default(true)
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+
+  @@index([keepEntityId])
+  @@index([mergeEntityId])
+  @@index([taskId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 // ==========================================
